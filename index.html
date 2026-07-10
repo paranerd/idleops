@@ -1,0 +1,99 @@
+<!doctype html>
+<html lang="de">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>IdleOps</title>
+  </head>
+  <body>
+    <header class="topbar">
+      <div class="brand">
+        <h1>IdleOps</h1>
+        <span class="tagline">Ein Gründer. Ein Laptop.</span>
+      </div>
+      <div class="stats">
+        <div class="stat stat--money">
+          <span class="stat__value" id="money">0 €</span>
+          <span class="stat__label" id="income">+0 €/s</span>
+        </div>
+        <div class="stat stat--rep">
+          <span class="stat__label">
+            Reputation <span id="rep-value">0</span>/100
+            <button id="rep-info-btn" class="info-btn" aria-label="Wie funktioniert Reputation?" aria-expanded="false">i</button>
+          </span>
+          <div class="repbar"><div class="repbar__fill" id="rep-fill"></div></div>
+          <div class="popover" id="rep-popover" hidden>
+            <h3>Reputation</h3>
+            <p>
+              Wächst automatisch, solange <strong>kein Incident</strong> läuft:
+              +0,5/min plus +0,05/min pro Angestellten.<br />
+              Aktuell: <strong id="rep-rate">+0,5/min</strong>
+            </p>
+            <ul>
+              <li>Incidents kosten Reputation: leicht <strong>−2</strong>, schwer <strong>−10</strong>, Hug of Death <strong>−5</strong></li>
+              <li>Schaltet höhere Ränge frei (Junior ab 8, Senior ab 25)</li>
+              <li>Wirkt auf den Gewinn: Faktor ×0,8 (Rep 0) bis ×1,2 (Rep 100)</li>
+            </ul>
+            <p class="popover__tip">Tipp: Tech-Upgrades wie CI/CD und Unit-Tests senken das Incident-Risiko.</p>
+          </div>
+        </div>
+      </div>
+    </header>
+
+    <div class="banner banner--spike" id="spike-banner" hidden></div>
+    <div class="banner banner--event" id="event-banner" hidden>
+      <div class="banner__text">
+        <strong id="event-title"></strong>
+        <span id="event-detail"></span>
+      </div>
+      <button id="event-fix" class="btn btn--fix"></button>
+    </div>
+
+    <main class="layout">
+      <section class="panel panel--click">
+        <h2>👤 Gründer</h2>
+        <button id="click-btn" class="btn btn--click">
+          <span class="btn--click__title" id="click-title">Ticket bearbeiten</span>
+          <span class="btn--click__sub" id="click-value"></span>
+        </button>
+        <p class="hint" id="founder-hint"></p>
+      </section>
+
+      <section class="panel">
+        <h2>
+          👥 Team
+          <span class="util" title="Auslastung: Wie viel des Team-Outputs tatsächlich Geld verdient. 100 % = Engpass — mehr einstellen!">
+            <span class="util__bar"><span class="util__fill" id="util-team-fill"></span></span>
+            <span class="util__pct" id="util-team-pct"></span>
+          </span>
+        </h2>
+        <div id="team-list" class="list"></div>
+      </section>
+
+      <section class="panel">
+        <h2>
+          🖥️ Hardware
+          <span class="util" title="Auslastung: Wie viel der Kapazität dein Team nutzt. 100 % = Engpass — aufrüsten!">
+            <span class="util__bar"><span class="util__fill" id="util-hw-fill"></span></span>
+            <span class="util__pct" id="util-hw-pct"></span>
+          </span>
+        </h2>
+        <div id="hw-list" class="list"></div>
+      </section>
+
+      <section class="panel">
+        <h2>🚀 Upgrades &amp; Perks</h2>
+        <div id="upgrade-list" class="list"></div>
+      </section>
+    </main>
+
+    <footer class="footer">
+      <span id="save-info"></span>
+      <button id="reset-btn" class="btn btn--ghost">Neues Spiel</button>
+    </footer>
+
+    <div id="toasts" class="toasts"></div>
+
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>

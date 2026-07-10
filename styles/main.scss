@@ -1,0 +1,566 @@
+// ============================================================================
+// IT Idle Clicker — Styles. Dunkles Terminal-Thema, eine Datei, kein Framework.
+// ============================================================================
+
+@use 'sass:color';
+
+$bg: #0d1117;
+$panel: #161b22;
+$panel-border: #30363d;
+$text: #e6edf3;
+$text-dim: #8b949e;
+$accent: #3fb950; // Geld-Grün
+$accent-dim: #238636;
+$gold: #d29922;
+$danger: #f85149;
+$rep: #58a6ff;
+
+* {
+  box-sizing: border-box;
+}
+
+// hidden-Attribut muss auch gegen display:flex gewinnen
+[hidden] {
+  display: none !important;
+}
+
+body {
+  margin: 0;
+  background: $bg;
+  color: $text;
+  font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+  min-height: 100vh;
+}
+
+h1,
+h2 {
+  margin: 0;
+  font-weight: 600;
+}
+
+// ----------------------------- Topbar -----------------------------
+
+.topbar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1rem;
+  align-items: center;
+  justify-content: space-between;
+  padding: 1rem 1.5rem;
+  border-bottom: 1px solid $panel-border;
+  background: $panel;
+
+  .brand h1 {
+    font-size: 1.25rem;
+  }
+
+  .tagline {
+    color: $text-dim;
+    font-size: 0.85rem;
+  }
+}
+
+.stats {
+  display: flex;
+  gap: 2rem;
+  align-items: center;
+}
+
+.stat {
+  display: flex;
+  flex-direction: column;
+
+  &__value {
+    font-size: 1.6rem;
+    font-weight: 700;
+    font-variant-numeric: tabular-nums;
+    color: $accent;
+  }
+
+  &__label {
+    color: $text-dim;
+    font-size: 0.85rem;
+    font-variant-numeric: tabular-nums;
+  }
+}
+
+.stat--rep {
+  position: relative;
+}
+
+.info-btn {
+  width: 16px;
+  height: 16px;
+  padding: 0;
+  margin-left: 4px;
+  border: 1px solid $text-dim;
+  border-radius: 50%;
+  background: transparent;
+  color: $text-dim;
+  font-size: 0.7rem;
+  font-weight: 700;
+  font-style: italic;
+  font-family: Georgia, serif;
+  line-height: 1;
+  cursor: pointer;
+  vertical-align: middle;
+
+  &:hover {
+    color: $rep;
+    border-color: $rep;
+  }
+}
+
+.popover {
+  position: absolute;
+  top: calc(100% + 8px);
+  right: 0;
+  z-index: 20;
+  width: 320px;
+  padding: 0.9rem 1rem;
+  background: $panel;
+  border: 1px solid $panel-border;
+  border-radius: 8px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.5);
+  font-size: 0.83rem;
+  line-height: 1.45;
+  color: $text;
+
+  h3 {
+    margin: 0 0 0.4rem;
+    font-size: 0.9rem;
+    color: $rep;
+  }
+
+  p {
+    margin: 0 0 0.5rem;
+  }
+
+  ul {
+    margin: 0 0 0.5rem;
+    padding-left: 1.1rem;
+
+    li {
+      margin-bottom: 0.25rem;
+    }
+  }
+
+  &__tip {
+    color: $text-dim;
+    font-size: 0.78rem;
+    margin-bottom: 0 !important;
+  }
+}
+
+.repbar {
+  width: 180px;
+  height: 8px;
+  border-radius: 4px;
+  background: $panel-border;
+  margin-top: 4px;
+  overflow: hidden;
+
+  &__fill {
+    height: 100%;
+    background: $rep;
+    border-radius: 4px;
+    transition: width 0.3s ease;
+  }
+}
+
+// ----------------------------- Banner -----------------------------
+
+.banner {
+  padding: 0.5rem 1.5rem;
+  font-size: 0.9rem;
+
+  &--spike {
+    color: $gold;
+    font-weight: 600;
+    background: rgba($gold, 0.1);
+    border-bottom: 1px solid $gold;
+  }
+
+  &--event {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+    background: rgba($danger, 0.12);
+    border-bottom: 1px solid $danger;
+    color: $text;
+
+    .banner__text {
+      display: flex;
+      flex-direction: column;
+
+      span {
+        color: $text-dim;
+        font-size: 0.85rem;
+      }
+    }
+  }
+}
+
+// ----------------------------- Layout -----------------------------
+
+.layout {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  gap: 1rem;
+  padding: 1rem 1.5rem;
+  max-width: 1400px;
+  margin: 0 auto;
+}
+
+.panel {
+  background: $panel;
+  border: 1px solid $panel-border;
+  border-radius: 8px;
+  padding: 1rem;
+
+  h2 {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    font-size: 0.95rem;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: $text-dim;
+    margin-bottom: 0.75rem;
+  }
+}
+
+// Auslastungs-Anzeige im Panel-Header — die 100-%-Seite ist der Engpass
+.util {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  margin-left: auto;
+  text-transform: none;
+  letter-spacing: normal;
+  cursor: help;
+
+  &__bar {
+    width: 44px;
+    height: 6px;
+    border-radius: 3px;
+    background: $panel-border;
+    overflow: hidden;
+  }
+
+  &__fill {
+    display: block;
+    height: 100%;
+    border-radius: 3px;
+    background: $rep;
+    transition: width 0.3s ease;
+
+    &--full {
+      background: $gold;
+    }
+  }
+
+  &__pct {
+    font-size: 0.75rem;
+    font-weight: 600;
+    font-variant-numeric: tabular-nums;
+    color: $text-dim;
+    white-space: nowrap;
+  }
+}
+
+.panel--click {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  position: relative; // Anker für .click-float
+}
+
+.click-float {
+  position: absolute;
+  top: 5.5rem;
+  pointer-events: none;
+  font-weight: 700;
+  font-size: 0.95rem;
+  color: $accent;
+  animation: float-up 0.9s ease-out forwards;
+  z-index: 5;
+}
+
+@keyframes float-up {
+  0% {
+    opacity: 1;
+    transform: translateY(0);
+  }
+
+  100% {
+    opacity: 0;
+    transform: translateY(-48px);
+  }
+}
+
+// Screen-Shake beim schweren Incident
+body.shake {
+  animation: shake 0.5s ease;
+}
+
+@keyframes shake {
+  10%,
+  90% {
+    transform: translateX(-2px);
+  }
+
+  20%,
+  80% {
+    transform: translateX(3px);
+  }
+
+  30%,
+  50%,
+  70% {
+    transform: translateX(-5px);
+  }
+
+  40%,
+  60% {
+    transform: translateX(5px);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  body.shake,
+  .click-float,
+  .btn--click-pulse {
+    animation: none;
+  }
+}
+
+.hint {
+  color: $text-dim;
+  font-size: 0.8rem;
+  margin: 0;
+}
+
+// ----------------------------- Items -----------------------------
+
+.list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  padding: 0.6rem 0.75rem;
+  border: 1px solid $panel-border;
+  border-radius: 6px;
+  background: rgba(255, 255, 255, 0.02);
+
+  &--owned {
+    opacity: 0.6;
+  }
+
+  &__title {
+    font-weight: 600;
+    font-size: 0.95rem;
+  }
+
+  &__icon {
+    font-size: 1rem;
+  }
+
+  &__count {
+    color: $accent;
+    font-size: 0.85rem;
+  }
+
+  &__desc {
+    color: $text-dim;
+    font-size: 0.8rem;
+    margin-top: 2px;
+  }
+
+  &__meta {
+    color: $rep;
+    font-size: 0.78rem;
+    margin-top: 2px;
+  }
+}
+
+// ----------------------------- Buttons -----------------------------
+
+.btn {
+  border: 1px solid $panel-border;
+  border-radius: 6px;
+  background: #21262d;
+  color: $text;
+  padding: 0.5rem 0.9rem;
+  font-size: 0.85rem;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: background 0.15s ease, transform 0.05s ease;
+
+  &:hover:not(:disabled) {
+    background: #30363d;
+  }
+
+  &:active:not(:disabled) {
+    transform: scale(0.97);
+  }
+
+  &:disabled {
+    opacity: 0.45;
+    cursor: default;
+  }
+
+  &--buy {
+    min-width: 110px;
+    position: relative;
+    overflow: hidden;
+
+    // Fortschrittsbalken Richtung Leistbarkeit (nur bei disabled sichtbar)
+    &:disabled {
+      opacity: 0.75;
+      color: $text-dim;
+      background-image: linear-gradient(
+        to right,
+        rgba($accent, 0.28) calc(var(--afford, 0) * 1%),
+        transparent calc(var(--afford, 0) * 1%)
+      );
+    }
+  }
+
+  &__icon {
+    flex-shrink: 0;
+    vertical-align: -1px;
+  }
+
+  &--buy {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 5px;
+  }
+
+  &--click {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0.25rem;
+    padding: 1.5rem 1rem;
+    font-size: 1.05rem;
+    font-weight: 700;
+    background: $accent-dim;
+    border-color: $accent;
+    position: relative;
+    overflow: hidden;
+
+    &:hover:not(:disabled) {
+      background: color.adjust($accent-dim, $lightness: -3%);
+    }
+
+    // Cooldown von "Auftrag gewinnen": Button füllt sich von links wieder
+    &:disabled {
+      opacity: 0.85;
+      background-color: #21262d;
+      background-image: linear-gradient(
+        to right,
+        rgba($accent, 0.3) calc(var(--cooldown, 100) * 1%),
+        transparent calc(var(--cooldown, 100) * 1%)
+      );
+    }
+
+    &__title {
+      font-size: 1.05rem;
+    }
+
+    &__sub {
+      font-weight: 400;
+      color: rgba(255, 255, 255, 0.75);
+    }
+  }
+
+  &--click-pulse {
+    animation: pulse 0.25s ease;
+  }
+
+  &--fix {
+    background: $danger;
+    border-color: $danger;
+    font-weight: 700;
+
+    &:hover:not(:disabled) {
+      background: color.adjust($danger, $lightness: -8%);
+    }
+  }
+
+  &--ghost {
+    background: transparent;
+    color: $text-dim;
+  }
+}
+
+@keyframes pulse {
+  0% {
+    transform: scale(1);
+  }
+
+  50% {
+    transform: scale(1.03);
+  }
+
+  100% {
+    transform: scale(1);
+  }
+}
+
+// ----------------------------- Footer & Toasts -----------------------------
+
+.footer {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 0.75rem 1.5rem;
+  color: $text-dim;
+  font-size: 0.8rem;
+}
+
+.toasts {
+  position: fixed;
+  bottom: 1rem;
+  right: 1rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  max-width: 340px;
+  z-index: 10;
+}
+
+.toast {
+  background: $panel;
+  border: 1px solid $panel-border;
+  border-left: 3px solid $accent;
+  border-radius: 6px;
+  padding: 0.6rem 0.8rem;
+  font-size: 0.85rem;
+  opacity: 0;
+  transform: translateX(20px);
+  transition: opacity 0.3s ease, transform 0.3s ease;
+
+  &--visible {
+    opacity: 1;
+    transform: translateX(0);
+  }
+
+  &--warn {
+    border-left-color: $danger;
+  }
+
+  &--gold {
+    border-left-color: $gold;
+  }
+}

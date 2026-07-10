@@ -1,0 +1,5 @@
+node_modules/
+dist/
+screenshot.png
+_to_delete/
+.claude/
