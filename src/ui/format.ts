@@ -46,8 +46,10 @@ export function fmtMoney(n: number): string {
   return `${COIN} ${fmt(n)}`;
 }
 
+// Raten bewusst OHNE Münze ("0,24/s"): Die Münze markiert Bestände und
+// Preise; bei /s-Angaben ist der Kontext klar und die Zeile bleibt ruhig.
 export function fmtRate(n: number): string {
-  return `${COIN} ${fmt(n)}/s`;
+  return `${fmt(n)}/s`;
 }
 
 /** Ganzzahl ohne Dezimalstellen (Klicks, Incidents, Stückzahlen). */

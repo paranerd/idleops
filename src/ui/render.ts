@@ -11,6 +11,7 @@ import {
   INCIDENTS,
   RANKS,
   SPIKE_MULT,
+  SPIKE_RESERVE_RATIO,
   TRAININGS,
   UPGRADES,
   type TrainingDef,
@@ -167,11 +168,15 @@ export function buildUI(s: GameState, onAction: () => void): void {
       r.name,
       `<div class="breakdown">
         ${popRow('Output pro Kopf', fmtRate(r.output))}
+        ${popRow('× Motivation', '', 'mot')}
+        ${popRow('× Reputation', '', 'rep')}
+        <div class="breakdown__row breakdown__row--total"><span>= Effektiver Zuwachs</span><strong data-pop="eff"></strong></div>
+      </div>
+      <div class="breakdown">
         ${popRow('Basis-Motivation', r.motivation.toLocaleString('de-DE'))}
         ${popRow('Incident-Risiko', `${r.riskPoints.toLocaleString('de-DE')} Punkte`)}
         ${r.repThreshold > 0 ? popRow('Einstellbar ab', `Reputation ${r.repThreshold}`) : ''}
-      </div>
-      <p class="popover__tip">Die Zeile zeigt den effektiven Gewinn-Zuwachs der nächsten Einstellung — Motivation, Reputation und Kapazität sind schon eingerechnet.</p>`,
+      </div>`,
     );
     row.button.addEventListener('click', () => {
       if (!s.unlockedRanks[r.id]) unlockRank(s, r.id);
@@ -295,13 +300,20 @@ function trainingEffectText(s: GameState, t: TrainingDef, owned: boolean): strin
   return parts.join(' · ');
 }
 
-function setUtil(which: 'team' | 'hw', ratio: number): void {
+/**
+ * Hardware-Auslastung als Dreistufen-Ampel: neutral → Gold, sobald die
+ * Spike-Reserve fehlt (Kapazität < 1,2 × Output) → Rot bei 100 % (Engpass).
+ * Die Team-Bar wurde bewusst entfernt: Es ist immer genau eine Seite der
+ * Engpass, und das "mehr einstellen"-Signal tragen die grünen Hire-Zuwächse.
+ */
+function setHwUtil(ratio: number): void {
   const pct = Math.min(100, Math.round(ratio * 100));
-  const full = pct >= 100;
-  $(`util-${which}-pct`).textContent = full ? '100 % · Engpass' : `${pct} %`;
-  const fill = $(`util-${which}-fill`);
+  $('util-hw-pct').textContent = `${pct} %`;
+  const fill = $('util-hw-fill');
   fill.style.width = `${pct}%`;
+  const full = pct >= 100;
   fill.classList.toggle('util__fill--full', full);
+  fill.classList.toggle('util__fill--warn', !full && ratio >= 1 / SPIKE_RESERVE_RATIO);
 }
 
 function reveal(s: GameState, key: string, condition: boolean): boolean {
@@ -337,6 +349,14 @@ export function render(s: GameState): void {
     if (s.spikeRemaining > 0) $('bd-spike').textContent = `×${SPIKE_MULT}`;
     $('bd-used-label').textContent = `Genutzt — Engpass: ${cap <= effOut ? 'Hardware' : 'Team'}`;
     $('bd-used').innerHTML = withCoinSvg(fmtRate(used));
+    // Nur der schlechte Zustand wird markiert: Hardware deckelt → rot
+    // (Team-Engpass ist der gesunde Normalzustand — alles verdient).
+    const capIsLimit = cap <= effOut;
+    $('bd-cap-row').classList.toggle('breakdown__row--alert', capIsLimit);
+    // Actionable Hinweis statt Mechanik-Erklärung — passend zum Engpass
+    $('income-tip').textContent = capIsLimit
+      ? 'Du könntest mehr verdienen, wenn du deine Hardware ausbaust.'
+      : 'Du könntest mehr verdienen, wenn du mehr Leute einstellst.';
     $('bd-mot').textContent = fmtFactor(motivation(s));
     $('bd-rep').textContent = fmtFactor(repFactor(s));
     const mult = incomeMult(s);
@@ -350,10 +370,8 @@ export function render(s: GameState): void {
     $('bd-total').innerHTML = withCoinSvg(`+${fmtRate(inc)}`);
   }
 
-  // Auslastung: die 100-%-Seite ist der Engpass
-  const used = Math.min(cap, out);
-  setUtil('team', used / out);
-  setUtil('hw', used / cap);
+  // Hardware-Auslastung (Team-Bar entfernt — redundant zur min()-Logik)
+  setHwUtil(Math.min(cap, out) / cap);
 
   // Spike-Banner (nur während des viralen Posts sichtbar)
   const spikeBanner = $('spike-banner');
@@ -430,6 +448,21 @@ export function render(s: GameState): void {
             : 'Kapazität voll — erst aufrüsten';
       }
     }
+    // Mini-Rechnung im Popover: Brutto-Output × Motivation × Reputation
+    // = effektiver Zuwachs — die Diskrepanz erklärt sich durch Vorrechnen.
+    if (!row.popover.hidden) {
+      // Motivation NACH der Einstellung — ein neuer Kopf verschiebt den Schnitt
+      s.emp[r.id] = (s.emp[r.id] ?? 0) + 1;
+      const motAfter = motivation(s);
+      s.emp[r.id] -= 1;
+      (row.popover.querySelector('[data-pop="mot"]') as HTMLElement).textContent = fmtFactor(motAfter);
+      (row.popover.querySelector('[data-pop="rep"]') as HTMLElement).textContent = fmtFactor(repFactor(s));
+      const effDelta = hireIncomeDelta(s, r.id);
+      (row.popover.querySelector('[data-pop="eff"]') as HTMLElement).innerHTML =
+        effDelta > 0.001
+          ? `<span class="gain">+${fmtRate(effDelta)}</span>`
+          : `+${fmtRate(0)} · Kapazität voll`;
+    }
   }
 
   // Hardware — kombinierte Wertanzeige (min()-UI-Regel aus der Spec!)
@@ -453,7 +486,7 @@ export function render(s: GameState): void {
     row.meta.innerHTML =
       delta > 0.001
         ? `<span class="gain">${withCoinSvg(`+${fmtRate(delta)}`)}</span>`
-        : withCoinSvg(`Reserve: +${fmtRate(h.capacity)} Kapazität`);
+        : withCoinSvg(`Reserve +${fmtRate(h.capacity)}`);
   }
 
   // Gründer-Schulungen: erst ab Phase 2 sichtbar (progressive disclosure).

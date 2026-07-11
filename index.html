@@ -22,8 +22,8 @@
             <h3>Gewinn pro Sekunde</h3>
             <div class="breakdown">
               <div class="breakdown__row"><span>👤 Du (Gründer)</span><strong id="bd-founder"></strong></div>
-              <div class="breakdown__row"><span>👥 Team</span><strong id="bd-team"></strong></div>
-              <div class="breakdown__row"><span>🖥️ Hardware-Kapazität</span><strong id="bd-cap"></strong></div>
+              <div class="breakdown__row" id="bd-team-row"><span>👥 Team</span><strong id="bd-team"></strong></div>
+              <div class="breakdown__row" id="bd-cap-row"><span>🖥️ Hardware-Kapazität</span><strong id="bd-cap"></strong></div>
               <div class="breakdown__row" id="bd-spike-row" hidden><span>🔥 Viraler Post auf Output</span><strong id="bd-spike"></strong></div>
               <div class="breakdown__row breakdown__row--used"><span id="bd-used-label">Genutzt</span><strong id="bd-used"></strong></div>
               <div class="breakdown__row"><span>× Motivation</span><strong id="bd-mot"></strong></div>
@@ -33,7 +33,7 @@
               <div class="breakdown__row"><span>− Betriebskosten</span><strong id="bd-upkeep"></strong></div>
               <div class="breakdown__row breakdown__row--total"><span>= Gewinn</span><strong id="bd-total"></strong></div>
             </div>
-            <p class="popover__tip">Nur das Minimum aus Team-Output und Hardware-Kapazität verdient Geld — die kleinere Seite ist dein Engpass.</p>
+            <p class="popover__tip" id="income-tip"></p>
           </div>
         </div>
         <div class="stat stat--rep">
@@ -83,20 +83,14 @@
       </section>
 
       <section class="panel">
-        <h2>
-          👥 Team
-          <span class="util" title="Auslastung: Wie viel des Team-Outputs tatsächlich Geld verdient. 100 % = Engpass — mehr einstellen!">
-            <span class="util__bar"><span class="util__fill" id="util-team-fill"></span></span>
-            <span class="util__pct" id="util-team-pct"></span>
-          </span>
-        </h2>
+        <h2>👥 Team</h2>
         <div id="team-list" class="list"></div>
       </section>
 
       <section class="panel">
         <h2>
           🖥️ Hardware
-          <span class="util" title="Auslastung: Wie viel der Kapazität dein Team nutzt. 100 % = Engpass — aufrüsten!">
+          <span class="util" title="Auslastung deiner Kapazität. Gold: kaum Spike-Reserve (unter 1,2× Output). Rot: Engpass — Team-Output verpufft, aufrüsten!">
             <span class="util__bar"><span class="util__fill" id="util-hw-fill"></span></span>
             <span class="util__pct" id="util-hw-pct"></span>
           </span>

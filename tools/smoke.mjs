@@ -37,8 +37,8 @@ await page.waitForTimeout(300);
 const money1 = await page.textContent('#money');
 console.log('Nach 30 Klicks:', money1);
 
-// 3) Auslastungs-Anzeige (Team sollte anfangs der Engpass sein: 100 %)
-console.log('Auslastung Team:', await page.textContent('#util-team-pct'), '| HW:', await page.textContent('#util-hw-pct'));
+// 3) Hardware-Auslastung (anfangs ist das Team der Engpass => HW deutlich unter 100 %)
+console.log('Auslastung HW:', await page.textContent('#util-hw-pct'));
 
 // 3b) Progressive disclosure: Junior/Senior/Tower/Upgrades anfangs versteckt?
 const visibleTeamRows = await page.locator('#team-list .item:visible').count();

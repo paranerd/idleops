@@ -207,6 +207,14 @@ h2 {
         color: $accent;
       }
     }
+
+    // Hardware deckelt den Gewinn (Output verpufft) — Alarm-Zustand
+    &--alert {
+      span,
+      strong {
+        color: $danger;
+      }
+    }
   }
 }
 
@@ -314,8 +322,14 @@ h2 {
     background: $rep;
     transition: width 0.3s ease;
 
-    &--full {
+    // Dreistufen-Ampel: Gold = keine Spike-Reserve mehr, Rot = Engpass
+    &--warn {
       background: $gold;
+    }
+
+    &--full {
+      background: $danger;
+      animation: util-pulse 1.2s ease-in-out infinite;
     }
   }
 
@@ -400,10 +414,22 @@ body.shake {
   }
 }
 
+@keyframes util-pulse {
+  0%,
+  100% {
+    opacity: 1;
+  }
+
+  50% {
+    opacity: 0.55;
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
   body.shake,
   .click-float,
-  .btn--click-pulse {
+  .btn--click-pulse,
+  .util__fill--full {
     animation: none;
   }
 }

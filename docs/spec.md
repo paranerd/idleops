@@ -165,7 +165,7 @@ Beispiele: Sommerfest, Offsite
 
 ## Balancing-Startwerte (MVP)
 
-**Anzeige-Konvention**: Im Spiel wird Geld als neutrale Münze dargestellt („🪙 100" statt „100 €") — global verständlich, ohne reale Währungsassoziationen. Die €-Werte in dieser Spec sind interne Recheneinheiten.
+**Anzeige-Konvention**: Im Spiel wird Geld als neutrale Münze dargestellt („🪙 100" statt „100 €") — global verständlich, ohne reale Währungsassoziationen. Die Münze markiert **Bestände und Preise**; Raten stehen ohne Münze („+0,24/s"), dort ist der Kontext klar. Die €-Werte in dieser Spec sind interne Recheneinheiten.
 
 Per Simulation verifiziert (gieriger Spieler mit Spar-Logik; Sim-Skript: `tools/balance_sim.py`). Gemessene Pacing-Kurve:
 
@@ -261,6 +261,8 @@ Ein Kapazitätskauf allein erhöht das Einkommen **nie** (mit Betriebskosten sen
 Dasselbe gilt spiegelbildlich für Angestellte: Der Roh-Output eines Rangs (z. B. „0,2 €/s") ist **nicht** der Gewinn-Zuwachs – Motivation und Reputations-Faktor skalieren ihn herunter (bei Rep 0: 0,2 × ~0,95 × 0,8 ≈ 0,15 €/s), und bei voller Kapazität ist der Zuwachs 0. Die Kauf-UI zeigt deshalb immer den **effektiv vorberechneten Gewinn-Zuwachs** des Kaufs an, nicht den Rohwert. (Einzige Ausnahme: Gründer-Schulungen — deren Boni sind additiv und immer exakt, siehe dort.)
 
 **Kompakte Kauf-Zeilen mit (i)-Popover** (Entscheidung 10.07.2026): Jede Kauf-Zeile (Team, Hardware, Upgrades, Schulungen) zeigt nur Icon, Titel, eine Impact-Zeile und den Kauf-Button. Alle Details — Rohwerte, Flavor-Text, Erklärungen — leben in einem (i)-Popover pro Zeile (statt nativer Tooltips, die auf Touch-Geräten nicht funktionieren). Es ist höchstens ein Item-Popover gleichzeitig offen; Klick außerhalb und Escape schließen.
+
+**Engpass-Anzeige** (Entscheidung 11.07.2026): Nur die Hardware-Auslastung hat eine Balken-Anzeige — die Team-Bar ist entfernt (redundant: Es ist immer genau eine Seite der Engpass, und das „mehr einstellen"-Signal tragen die grünen Hire-Zuwächse in der Team-Liste). Der Hardware-Balken ist eine Dreistufen-Ampel: neutral → **Gold** ab Auslastung ≥ 1/1,2 (~83 %, keine Spike-Reserve mehr, Hug-of-Death-Risiko) → **Rot pulsierend** bei 100 % (Engpass, Team-Output verpufft). Kein „Engpass"-Text mehr am Balken. Im Gewinn-Popover wird nur der schlechte Zustand markiert: Deckelt die Hardware (Output verpufft), färbt sich die Kapazitäts-Zeile **rot** — Team-Engpass ist der gesunde Normalzustand und bleibt unmarkiert. Der Popover-Hinweis ist actionable und dynamisch statt mechanik-erklärend: „Du könntest mehr verdienen, wenn du deine Hardware ausbaust" bzw. „…wenn du mehr Leute einstellst". Hardware-Meta bei fehlendem Sofort-Zuwachs kurz: „Reserve +1,00/s".
 
 **Vorzeichen-Konvention für Geldbeträge** (Entscheidung 11.07.2026): „+🪙 …" in Geld-Grün bedeutet immer *Geld kommt rein* (Klick-Button, Gewinn-Zuwachs-Metas, Klick-Float, Gewinn/s). Beträge auf Kauf-Buttons stehen ohne Vorzeichen, ohne Plus-Icon und in neutraler Farbe — ein Klick darauf *kostet*. Schloss (Freischaltung) und Haken (gekauft) bleiben als Status-Icons erhalten.
 
