@@ -90,17 +90,42 @@ export interface UpgradeDef {
   name: string;
   icon: string; // Emoji für die UI
   price: number;
-  desc: string;
+  impact: string; // der Effekt in Kurzform — sichtbar in der Zeile
+  desc: string; // Flavor-Text — nur im (i)-Popover
   effect: UpgradeEffect;
 }
 
 export const UPGRADES: UpgradeDef[] = [
-  { id: 'obst', name: 'Obstschale', icon: '🍎', price: 300, desc: '+0,05 Motivation. Vitamine!', effect: { type: 'motivation', bonus: 0.05 } },
-  { id: 'cicd', name: 'CI/CD', icon: '🔁', price: 800, desc: '−25 % Incident-Wahrscheinlichkeit.', effect: { type: 'incidentMult', mult: 0.75 } },
-  { id: 'snacks', name: 'Snacks', icon: '🍫', price: 2000, desc: '+0,05 Motivation. Der Automat ist jetzt gratis.', effect: { type: 'motivation', bonus: 0.05 } },
-  { id: 'caching', name: 'Caching', icon: '⚡', price: 5000, desc: '+25 % Gewinn. Es gibt nur zwei schwere Probleme in der Informatik…', effect: { type: 'incomeMult', mult: 1.25 } },
-  { id: 'runbooks', name: 'Runbooks', icon: '📖', price: 8000, desc: 'Leichte Incidents beheben sich automatisch.', effect: { type: 'autoFixLight' } },
-  { id: 'tests', name: 'Unit-Tests', icon: '✅', price: 12000, desc: '−25 % Incident-Wahrscheinlichkeit.', effect: { type: 'incidentMult', mult: 0.75 } },
+  { id: 'obst', name: 'Obstschale', icon: '🍎', price: 300, impact: '+0,05 Motivation', desc: 'Vitamine!', effect: { type: 'motivation', bonus: 0.05 } },
+  { id: 'cicd', name: 'CI/CD', icon: '🔁', price: 800, impact: '−25 % Incident-Wahrscheinlichkeit', desc: 'Jeder Push geht automatisch live — kein Deployen von Hand mehr.', effect: { type: 'incidentMult', mult: 0.75 } },
+  { id: 'snacks', name: 'Snacks', icon: '🍫', price: 2000, impact: '+0,05 Motivation', desc: 'Der Automat ist jetzt gratis.', effect: { type: 'motivation', bonus: 0.05 } },
+  { id: 'caching', name: 'Caching', icon: '⚡', price: 5000, impact: '+25 % Gewinn', desc: 'Es gibt nur zwei schwere Probleme in der Informatik…', effect: { type: 'incomeMult', mult: 1.25 } },
+  { id: 'runbooks', name: 'Runbooks', icon: '📖', price: 8000, impact: 'Leichte Incidents beheben sich automatisch', desc: 'Wenn es brennt, steht der Plan schon im Wiki.', effect: { type: 'autoFixLight' } },
+  { id: 'tests', name: 'Unit-Tests', icon: '✅', price: 12000, impact: '−25 % Incident-Wahrscheinlichkeit', desc: 'Rot, grün, refactor.', effect: { type: 'incidentMult', mult: 0.75 } },
+];
+
+// Gründer-Schulungen: In-Run-Progression des Gründers (Spec-Abschnitt
+// "Gründer-Schulungen"). Verbessern NUR die Klick-Mechanik — der Effekt
+// passt immer zum Thema der Schulung. Leitplanke: voll ausgebaut
+// dealMult/cooldown ≤ 1,0 (≈ max. +100 % Einkommensäquivalent), MVP: 21×/22 s.
+export interface TrainingDef {
+  id: string;
+  name: string;
+  icon: string; // Emoji für die UI
+  price: number;
+  desc: string; // Flavor-Text — nur im (i)-Popover
+  dealMultBonus: number; // + auf den Auftrags-Multiplikator (Phase 2)
+  cooldownBonus: number; // Sekunden auf den Cooldown (negativ = schneller)
+  fixClickBonus: number; // + zusätzliche Wirkung pro Incident-Behebungs-Klick
+}
+
+export const TRAININGS: TrainingDef[] = [
+  { id: 'networking', name: 'Networking-Seminar', icon: '🤝', price: 500, desc: 'Man kennt sich — der nächste Auftrag kommt schneller.', dealMultBonus: 0, cooldownBonus: -4, fixClickBonus: 0 },
+  { id: 'aws-cert', name: 'AWS-Zertifikat', icon: '📜', price: 1200, desc: 'Qualifiziert für dicke Enterprise-Aufträge.', dealMultBonus: 2, cooldownBonus: 0, fixClickBonus: 0 },
+  { id: 'incident-training', name: 'Incident-Response-Training', icon: '🧯', price: 2500, desc: 'Der Gründer als geübte Feuerwehr.', dealMultBonus: 0, cooldownBonus: 0, fixClickBonus: 1 },
+  { id: 'scrum-cert', name: 'Scrum-Master-Zertifikat', icon: '📋', price: 4000, desc: '2-Tages-Kurs. Schneller geliefert, schneller der nächste Auftrag.', dealMultBonus: 0, cooldownBonus: -3, fixClickBonus: 0 },
+  { id: 'negotiation', name: 'Verhandlungstraining', icon: '💼', price: 8000, desc: 'Höhere Abschlüsse rausverhandeln.', dealMultBonus: 3, cooldownBonus: 0, fixClickBonus: 0 },
+  { id: 'mba', name: 'MBA', icon: '🎓', price: 50000, desc: 'Teuer, Effekt fragwürdig.', dealMultBonus: 1, cooldownBonus: -1, fixClickBonus: 0 },
 ];
 
 export interface IncidentDef {

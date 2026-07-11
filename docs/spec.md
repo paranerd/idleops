@@ -38,6 +38,21 @@ Weitere Aufgaben des Klicks:
 
 **Meilenstein-Moment**: Wenn das passive Einkommen erstmals das Klick-Einkommen übersteigt → Feier-Event („Du hast dein letztes Ticket geschlossen — ab jetzt gewinnst du Aufträge!") und der Button wechselt in Phase 2.
 
+Multiplikator und Cooldown von Phase 2 sind nicht statisch: Sie sind über **Gründer-Schulungen** ausbaubar (siehe nächster Abschnitt).
+
+## Gründer-Schulungen
+
+Der Gründer ist im Gameplay der Klick — Schulungen und Zertifikate sind seine **Progression innerhalb eines Runs**. Sie verbessern ausschließlich die Klick-Mechanik, nicht die min()-Formel: Damit bleibt aktives Spielen dauerhaft attraktiv, die Erzählfigur Gründer bleibt präsent, und es entsteht keine Überschneidung mit Tech-Upgrades (Incidents) oder Perks (Motivation).
+
+- **Einmalkäufe für Geld**, eigener kleiner „Gründer"-Bereich in der UI; sichtbar ab Phase 2 (progressive disclosure). Die **nächste offene Schulung ist immer sichtbar** — der Spieler soll wissen, worauf er spart; weitere erscheinen erst, wenn sie fast leistbar sind.
+- **Der Effekt passt immer zum Thema der Schulung**:
+  - *Fach-Zertifikate* qualifizieren für größere Aufträge → **Klick-Multiplikator ↑** (z. B. AWS-Zertifikat: Enterprise-Kunden vergeben dickere Aufträge)
+  - *Netzwerk-/Prozess-Schulungen* bringen schneller den nächsten Auftrag → **Cooldown ↓** (z. B. Networking-Seminar: man kennt sich)
+  - *Incident-Trainings* stärken die Feuerwehr-Rolle des Klicks → Behebungs-Klicks zählen doppelt
+- **Abgrenzung zu den Exit-Perks** (siehe „Später"): Schulungen sind, was der Gründer *in diesem Run* lernt (gehen beim Exit verloren); Exit-Perks sind, wer er *über Runs hinweg* geworden ist. Deshalb fassen Schulungen nur den Klick an, Exit-Perks das Grundspiel.
+- **Balancing-Leitplanke**: Voll ausgebaut darf der Klick höchstens ~+100 % Einkommensäquivalent bringen (Multiplikator ÷ Cooldown ≤ 1,0 × Gewinn/s), sonst fühlt sich Idle-Spielen bestraft an. Startwert ist +50 % (15× / 30 s), voll ausgebaut +95 % (21× / 22 s).
+- Der satirische Ton bleibt: Der teuerste Eintrag ist der MBA („teuer, Effekt fragwürdig").
+
 ## Reputation
 
 Reputation ist die zweite zentrale Größe neben Geld – und die einzige, die **sinken** kann.
@@ -150,6 +165,8 @@ Beispiele: Sommerfest, Offsite
 
 ## Balancing-Startwerte (MVP)
 
+**Anzeige-Konvention**: Im Spiel wird Geld als neutrale Münze dargestellt („🪙 100" statt „100 €") — global verständlich, ohne reale Währungsassoziationen. Die €-Werte in dieser Spec sind interne Recheneinheiten.
+
 Per Simulation verifiziert (gieriger Spieler mit Spar-Logik; Sim-Skript: `tools/balance_sim.py`). Gemessene Pacing-Kurve:
 
 | Meilenstein | mit Klicken (~2 Klicks/s) | reines Idle |
@@ -216,6 +233,21 @@ Amortisation steigt mit dem Rang (Intern 100 s → Junior 200 s → Senior ~375 
 | Caching | 5.000 € | +25 % Gewinn |
 | Unit-Tests | 12.000 € | −25 % Incident-Wahrscheinlichkeit |
 
+### Gründer-Schulungen
+
+Per Simulation gegengerechnet (Sim um Phase-2-Klicks erweitert; aktiver Spieler nutzt jeden Cooldown): Kaufzeitpunkte verteilen sich über ~14–50 min und füllen die Wartezeiten vor den Reputations-Gates mit; voll ausgebaut liegt der Klick-Bonus bei +95 % Einkommensäquivalent (Cap: +100 %).
+
+| Schulung | Preis | Effekt | Thema |
+|---|---|---|---|
+| Networking-Seminar | 500 € | Cooldown 30 s → 26 s | Man kennt sich – der nächste Auftrag kommt schneller |
+| AWS-Zertifikat | 1.200 € | Multiplikator 15× → 17× | Qualifiziert für dicke Enterprise-Aufträge |
+| Incident-Response-Training | 2.500 € | Incident-Behebungs-Klicks zählen doppelt | Der Gründer als geübte Feuerwehr |
+| Scrum-Master-Zertifikat (2-Tages-Kurs) | 4.000 € | Cooldown 26 s → 23 s | Schneller geliefert, schneller der nächste Auftrag |
+| Verhandlungstraining | 8.000 € | Multiplikator 17× → 20× | Höhere Abschlüsse rausverhandeln |
+| MBA | 50.000 € | +1× und −1 s | Teuer, Effekt fragwürdig |
+
+**UI der Schulungen** (Entscheidung 10.07.2026): Sichtbar in der Zeile ist der direkte Impact als exakter Rohwert relativ zum aktuellen Stand („×15 → ×17", „30 s → 26 s"). Das ist eine bewusste Ausnahme von der Nie-Rohwerte-Regel: Schulungs-Boni sind additiv und immer exakt wahr — anders als bei min()-Käufen kann der Rohwert hier nicht in die Irre führen. Flavor-Text, Effekt-Details und der effektive Zuwachs („+X €/s bei aktivem Spielen") stehen im (i)-Popover der Zeile.
+
 ### Viraler Spike
 
 - Chance auf Auslösung ca. alle 8–12 min
@@ -226,7 +258,11 @@ Amortisation steigt mit dem Rang (Intern 100 s → Junior 200 s → Senior ~375 
 
 Ein Kapazitätskauf allein erhöht das Einkommen **nie** (mit Betriebskosten senkt er es sogar kurzzeitig). Die Kauf-UI muss deshalb den kombinierten Wert zeigen – z. B. „+0 €/s jetzt, +1,5 €/s mit dem nächsten Hire" – sonst wirken Hardware-Käufe kaputt. (In der Simulation führte das naive „kaufe nur, was sofort Einkommen bringt" zu einem kompletten Deadlock.)
 
-Dasselbe gilt spiegelbildlich für Angestellte: Der Roh-Output eines Rangs (z. B. „0,2 €/s") ist **nicht** der Gewinn-Zuwachs – Motivation und Reputations-Faktor skalieren ihn herunter (bei Rep 0: 0,2 × ~0,95 × 0,8 ≈ 0,15 €/s), und bei voller Kapazität ist der Zuwachs 0. Die Kauf-UI zeigt deshalb immer den **effektiv vorberechneten Gewinn-Zuwachs** des Kaufs an, nicht den Rohwert.
+Dasselbe gilt spiegelbildlich für Angestellte: Der Roh-Output eines Rangs (z. B. „0,2 €/s") ist **nicht** der Gewinn-Zuwachs – Motivation und Reputations-Faktor skalieren ihn herunter (bei Rep 0: 0,2 × ~0,95 × 0,8 ≈ 0,15 €/s), und bei voller Kapazität ist der Zuwachs 0. Die Kauf-UI zeigt deshalb immer den **effektiv vorberechneten Gewinn-Zuwachs** des Kaufs an, nicht den Rohwert. (Einzige Ausnahme: Gründer-Schulungen — deren Boni sind additiv und immer exakt, siehe dort.)
+
+**Kompakte Kauf-Zeilen mit (i)-Popover** (Entscheidung 10.07.2026): Jede Kauf-Zeile (Team, Hardware, Upgrades, Schulungen) zeigt nur Icon, Titel, eine Impact-Zeile und den Kauf-Button. Alle Details — Rohwerte, Flavor-Text, Erklärungen — leben in einem (i)-Popover pro Zeile (statt nativer Tooltips, die auf Touch-Geräten nicht funktionieren). Es ist höchstens ein Item-Popover gleichzeitig offen; Klick außerhalb und Escape schließen.
+
+**Vorzeichen-Konvention für Geldbeträge** (Entscheidung 11.07.2026): „+🪙 …" in Geld-Grün bedeutet immer *Geld kommt rein* (Klick-Button, Gewinn-Zuwachs-Metas, Klick-Float, Gewinn/s). Beträge auf Kauf-Buttons stehen ohne Vorzeichen, ohne Plus-Icon und in neutraler Farbe — ein Klick darauf *kostet*. Schloss (Freischaltung) und Haken (gekauft) bleiben als Status-Icons erhalten.
 
 ## MVP-Umfang (erster Prototyp)
 
@@ -237,8 +273,9 @@ Dasselbe gilt spiegelbildlich für Angestellte: Der Roh-Output eines Rangs (z. B
 5. Reputation: Aufbau über Zeit, Verlust durch Incidents, Rang-Freischaltung ab Schwelle
 6. 2 Incident-Typen (leicht/schwer) mit Klick-Behebung
 7. 3–4 Tech-Upgrades (davon 1× Auto-Behebung) + 2 dauerhafte Perks
-8. Der virale Spike als Event
-9. Speichern/Laden mit Offline-Progress
+8. Gründer-Schulungen (6 Stück, Klick-Progression) — *Ergänzung 10.07.2026*
+9. Der virale Spike als Event
+10. Speichern/Laden mit Offline-Progress
 
 ## Später (bewusst nicht im MVP)
 

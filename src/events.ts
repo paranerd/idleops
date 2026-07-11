@@ -14,7 +14,7 @@ import {
   SPIKE_PROB_PER_SEC,
   SPIKE_RESERVE_RATIO,
 } from './config';
-import { baseIncome, capacity, hasAutoFixLight, incidentProbMult, output, riskPoints } from './engine';
+import { baseIncome, capacity, fixPowerPerClick, hasAutoFixLight, incidentProbMult, output, riskPoints } from './engine';
 import type { GameState } from './state';
 
 export type GameEvent =
@@ -68,10 +68,10 @@ export function tickIncident(s: GameState, dt: number): GameEvent[] {
   return [{ kind: wasAuto ? 'incidentAutoFixed' : 'incidentSelfHealed', title }];
 }
 
-/** Spieler klickt auf "Beheben". */
+/** Spieler klickt auf "Beheben". Incident-Response-Training verstärkt den Klick. */
 export function clickFixIncident(s: GameState): GameEvent[] {
   if (!s.incident) return [];
-  s.incident.clicksLeft -= 1;
+  s.incident.clicksLeft -= fixPowerPerClick(s);
   if (s.incident.clicksLeft > 0) return [];
   const title = s.incident.title;
   s.incident = null;

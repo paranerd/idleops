@@ -88,7 +88,8 @@ h2 {
   }
 }
 
-.stat--rep {
+.stat--rep,
+.stat--money {
   position: relative;
 }
 
@@ -153,6 +154,59 @@ h2 {
     color: $text-dim;
     font-size: 0.78rem;
     margin-bottom: 0 !important;
+  }
+
+  // Variante: hängt an einem Stat am linken Rand der Stats-Leiste
+  &--left {
+    right: auto;
+    left: 0;
+  }
+
+  // Variante: hängt an einer Item-Zeile (Team, Hardware, Upgrades, Schulungen)
+  &--item {
+    top: calc(100% + 6px);
+    right: 0;
+    width: min(320px, 100%);
+  }
+}
+
+// Gewinn-Aufschlüsselung im Popover — Formel Zeile für Zeile
+.breakdown {
+  margin-bottom: 0.5rem;
+  font-variant-numeric: tabular-nums;
+
+  &__row {
+    display: flex;
+    justify-content: space-between;
+    gap: 1rem;
+    padding: 2px 0;
+
+    span {
+      color: $text-dim;
+    }
+
+    strong {
+      white-space: nowrap;
+    }
+
+    &--used {
+      border-top: 1px solid $panel-border;
+
+      span {
+        color: $text;
+      }
+    }
+
+    &--total {
+      border-top: 1px solid $panel-border;
+      margin-top: 2px;
+      padding-top: 4px;
+
+      span,
+      strong {
+        color: $accent;
+      }
+    }
   }
 }
 
@@ -281,6 +335,20 @@ h2 {
   position: relative; // Anker für .click-float
 }
 
+// Vorzeichen-Konvention: "+🪙 …" (Einnahme) ist grün; Beträge auf
+// Kauf-Buttons stehen ohne Vorzeichen und bleiben neutral — sie kosten.
+.gain {
+  color: $accent;
+}
+
+// Goldene SVG-Münze — em-basiert, skaliert mit der Schriftgröße des Kontexts
+.coin {
+  width: 0.9em;
+  height: 0.9em;
+  display: inline-block;
+  vertical-align: -0.08em;
+}
+
 .click-float {
   position: absolute;
   top: 5.5rem;
@@ -346,6 +414,16 @@ body.shake {
   margin: 0;
 }
 
+// Zwischenüberschrift im Panel (z. B. "Weiterbildung" im Gründer-Panel)
+.subheading {
+  margin: 0.25rem 0 0.5rem;
+  font-size: 0.8rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: $text-dim;
+}
+
 // ----------------------------- Items -----------------------------
 
 .list {
@@ -363,6 +441,7 @@ body.shake {
   border: 1px solid $panel-border;
   border-radius: 6px;
   background: rgba(255, 255, 255, 0.02);
+  position: relative; // Anker für das (i)-Popover der Zeile
 
   &--owned {
     opacity: 0.6;
@@ -380,12 +459,6 @@ body.shake {
   &__count {
     color: $accent;
     font-size: 0.85rem;
-  }
-
-  &__desc {
-    color: $text-dim;
-    font-size: 0.8rem;
-    margin-top: 2px;
   }
 
   &__meta {
@@ -531,7 +604,7 @@ body.shake {
 
 .footer {
   display: flex;
-  justify-content: space-between;
+  justify-content: flex-end; // nur noch der "Neues Spiel"-Button
   align-items: center;
   padding: 0.75rem 1.5rem;
   color: $text-dim;

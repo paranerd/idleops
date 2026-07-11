@@ -7,9 +7,14 @@ import { describe, expect, it } from 'vitest';
 import {
   baseIncome,
   buyHardware,
+  buyTraining,
   buyUpgrade,
   capacity,
   dealClick,
+  dealCooldown,
+  dealMult,
+  fixPowerPerClick,
+  trainingActiveRateDelta,
   hardwareIncomeDelta,
   hardwarePrice,
   hire,
@@ -24,7 +29,9 @@ import {
   unlockRank,
 } from './engine';
 import { advance } from './tick';
+import { clickFixIncident } from './events';
 import { initialState } from './state';
+import { TRAININGS } from './config';
 
 describe('Startzustand', () => {
   it('Gründer + Laptop: min(1.0, 0.3) × 1.0 × 0.8 = 0.24 €/s', () => {
@@ -220,6 +227,66 @@ describe('Klick Phase 2: Auftrag gewinnen', () => {
     advance(s, 30, () => 1); // Cooldown ablaufen lassen
     expect(s.clickCooldown).toBe(0);
     expect(dealClick(s)).not.toBe(false);
+  });
+});
+
+describe('Gründer-Schulungen', () => {
+  it('erst ab Phase 2 buchbar, kein Doppelkauf', () => {
+    const s = initialState();
+    s.money = 10000;
+    expect(buyTraining(s, 'networking')).toBe(false); // noch Phase 1
+    s.milestoneReached = true;
+    expect(buyTraining(s, 'networking')).toBe(true);
+    expect(s.money).toBeCloseTo(10000 - 500);
+    expect(buyTraining(s, 'networking')).toBe(false);
+  });
+
+  it('AWS-Zertifikat + Networking: 17× und 26 s (Spec-Tabelle)', () => {
+    const s = initialState();
+    s.milestoneReached = true;
+    s.money = 10000;
+    buyTraining(s, 'networking');
+    buyTraining(s, 'aws-cert');
+    expect(dealMult(s)).toBe(17);
+    expect(dealCooldown(s)).toBe(26);
+    const expected = baseIncome(s) * 17;
+    expect(dealClick(s)).toBeCloseTo(expected);
+    expect(s.clickCooldown).toBe(26);
+  });
+
+  it('voll ausgebaut: 21×/22 s — unter dem +100%-Cap (Spec-Leitplanke)', () => {
+    const s = initialState();
+    s.milestoneReached = true;
+    s.money = 1e6;
+    for (const t of TRAININGS) buyTraining(s, t.id);
+    expect(dealMult(s)).toBe(21);
+    expect(dealCooldown(s)).toBe(22);
+    // Leitplanke: Klick-Einkommensäquivalent ≤ 1,0 × Gewinn/s
+    expect(dealMult(s) / dealCooldown(s)).toBeLessThanOrEqual(1.0);
+  });
+
+  it('Incident-Response-Training: Behebungs-Klicks zählen doppelt', () => {
+    const s = initialState();
+    s.milestoneReached = true;
+    s.money = 10000;
+    expect(fixPowerPerClick(s)).toBe(1);
+    buyTraining(s, 'incident-training');
+    expect(fixPowerPerClick(s)).toBe(2);
+    s.incident = { defIndex: 0, title: 'Test', remaining: 30, clicksLeft: 3 };
+    clickFixIncident(s); // 3 → 1
+    expect(s.incident).not.toBeNull();
+    const events = clickFixIncident(s); // 1 → behoben
+    expect(s.incident).toBeNull();
+    expect(events.some((e) => e.kind === 'incidentFixed')).toBe(true);
+  });
+
+  it('Vorschau: effektiver Zuwachs bei aktivem Spielen, State unverändert', () => {
+    const s = initialState();
+    s.milestoneReached = true;
+    expect(trainingActiveRateDelta(s, 'aws-cert')).toBeGreaterThan(0);
+    expect(trainingActiveRateDelta(s, 'networking')).toBeGreaterThan(0);
+    expect(trainingActiveRateDelta(s, 'incident-training')).toBe(0);
+    expect(s.trainings).toEqual([]);
   });
 });
 

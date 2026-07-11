@@ -14,6 +14,7 @@ export interface GameState {
   emp: Record<string, number>; // rankId -> Anzahl
   unlockedRanks: Record<string, boolean>;
   upgrades: string[]; // gekaufte Upgrade-IDs
+  trainings: string[]; // absolvierte Gründer-Schulungen (IDs)
   incident: ActiveIncident | null;
   spikeRemaining: number; // s, 0 = kein Spike
   clickCooldown: number; // s, Cooldown von "Auftrag gewinnen" (Phase 2)
@@ -39,6 +40,7 @@ export function initialState(): GameState {
     emp,
     unlockedRanks,
     upgrades: [],
+    trainings: [],
     incident: null,
     spikeRemaining: 0,
     clickCooldown: 0,

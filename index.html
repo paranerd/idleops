@@ -13,8 +13,28 @@
       </div>
       <div class="stats">
         <div class="stat stat--money">
-          <span class="stat__value" id="money">0 €</span>
-          <span class="stat__label" id="income">+0 €/s</span>
+          <span class="stat__value" id="money"></span>
+          <span class="stat__label">
+            <span id="income"></span>
+            <button id="income-info-btn" class="info-btn" aria-label="Wie setzt sich der Gewinn zusammen?" aria-expanded="false">i</button>
+          </span>
+          <div class="popover popover--left" id="income-popover" hidden>
+            <h3>Gewinn pro Sekunde</h3>
+            <div class="breakdown">
+              <div class="breakdown__row"><span>👤 Du (Gründer)</span><strong id="bd-founder"></strong></div>
+              <div class="breakdown__row"><span>👥 Team</span><strong id="bd-team"></strong></div>
+              <div class="breakdown__row"><span>🖥️ Hardware-Kapazität</span><strong id="bd-cap"></strong></div>
+              <div class="breakdown__row" id="bd-spike-row" hidden><span>🔥 Viraler Post auf Output</span><strong id="bd-spike"></strong></div>
+              <div class="breakdown__row breakdown__row--used"><span id="bd-used-label">Genutzt</span><strong id="bd-used"></strong></div>
+              <div class="breakdown__row"><span>× Motivation</span><strong id="bd-mot"></strong></div>
+              <div class="breakdown__row"><span>× Reputation</span><strong id="bd-rep"></strong></div>
+              <div class="breakdown__row" id="bd-mult-row" hidden><span>× Upgrades</span><strong id="bd-mult"></strong></div>
+              <div class="breakdown__row" id="bd-incident-row" hidden><span>🚨 Incident</span><strong id="bd-incident"></strong></div>
+              <div class="breakdown__row"><span>− Betriebskosten</span><strong id="bd-upkeep"></strong></div>
+              <div class="breakdown__row breakdown__row--total"><span>= Gewinn</span><strong id="bd-total"></strong></div>
+            </div>
+            <p class="popover__tip">Nur das Minimum aus Team-Output und Hardware-Kapazität verdient Geld — die kleinere Seite ist dein Engpass.</p>
+          </div>
         </div>
         <div class="stat stat--rep">
           <span class="stat__label">
@@ -56,7 +76,10 @@
           <span class="btn--click__title" id="click-title">Ticket bearbeiten</span>
           <span class="btn--click__sub" id="click-value"></span>
         </button>
-        <p class="hint" id="founder-hint"></p>
+        <div id="training-section" hidden>
+          <h3 class="subheading">🎓 Weiterbildung</h3>
+          <div id="training-list" class="list"></div>
+        </div>
       </section>
 
       <section class="panel">
@@ -88,7 +111,6 @@
     </main>
 
     <footer class="footer">
-      <span id="save-info"></span>
       <button id="reset-btn" class="btn btn--ghost">Neues Spiel</button>
     </footer>
 

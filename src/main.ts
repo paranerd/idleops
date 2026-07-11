@@ -4,7 +4,7 @@ import { dealClick } from './engine';
 import { load, resetSave, save, setupAutosave } from './save';
 import { startLoop } from './tick';
 import { buildUI, render, toast } from './ui/render';
-import { fmt, fmtInt, fmtMoney } from './ui/format';
+import { fmt, fmtMoney, withCoinSvg } from './ui/format';
 import type { GameEvent } from './events';
 import type { MilestoneEvent } from './tick';
 
@@ -37,7 +37,7 @@ clickBtn.addEventListener('click', (e) => {
 function spawnClickFloat(e: MouseEvent, amount: number): void {
   const float = document.createElement('span');
   float.className = 'click-float';
-  float.textContent = `+${fmtMoney(amount)}`;
+  float.innerHTML = withCoinSvg(`+${fmtMoney(amount)}`);
   const rect = clickBtn.getBoundingClientRect();
   const x = e.clientX > 0 ? e.clientX - rect.left : rect.width / 2;
   float.style.left = `${x + (Math.random() * 24 - 12)}px`;
@@ -106,13 +106,9 @@ if (offline) {
 
 setupAutosave(state);
 
-const saveInfo = document.getElementById('save-info')!;
 window.setInterval(() => {
   save(state);
 }, 30_000);
-window.setInterval(() => {
-  saveInfo.textContent = `Auto-Save aktiv · ${fmtInt(state.stats.clicks)} Klicks · ${fmtInt(state.stats.incidents)} Incidents überstanden`;
-}, 1000);
 
 startLoop(state, (events) => {
   for (const e of events) handleEvent(e);

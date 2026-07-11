@@ -19,6 +19,7 @@ import {
   REP_MAX,
   REP_PER_EMPLOYEE_PER_MIN,
   SPIKE_MULT,
+  TRAININGS,
   UPGRADES,
 } from './config';
 import type { GameState } from './state';
@@ -107,10 +108,36 @@ export function baseIncome(s: GameState): number {
 }
 
 // ----------------------------- Klick Phase 2: Auftrag gewinnen -----------------------------
+// Gründer-Schulungen verbessern NUR diese Mechanik (Spec: "Gründer-Schulungen").
+
+/** Auftrags-Multiplikator inkl. Schulungs-Boni (Basis 15×). */
+export function dealMult(s: GameState): number {
+  return TRAININGS.reduce(
+    (m, t) => m + (s.trainings.includes(t.id) ? t.dealMultBonus : 0),
+    DEAL_INCOME_MULT,
+  );
+}
+
+/** Cooldown von "Auftrag gewinnen" inkl. Schulungs-Boni (Basis 30 s). */
+export function dealCooldown(s: GameState): number {
+  const cd = TRAININGS.reduce(
+    (c, t) => c + (s.trainings.includes(t.id) ? t.cooldownBonus : 0),
+    DEAL_COOLDOWN,
+  );
+  return Math.max(1, cd);
+}
+
+/** Wirkung eines Incident-Behebungs-Klicks (Basis 1, Schulung verdoppelt). */
+export function fixPowerPerClick(s: GameState): number {
+  return TRAININGS.reduce(
+    (p, t) => p + (s.trainings.includes(t.id) ? t.fixClickBonus : 0),
+    1,
+  );
+}
 
 /** Wert eines gewonnenen Auftrags — skaliert mit dem Einkommen. */
 export function dealValue(s: GameState): number {
-  return baseIncome(s) * DEAL_INCOME_MULT;
+  return baseIncome(s) * dealMult(s);
 }
 
 /** Auftrag gewinnen (Phase-2-Klick). false, wenn noch im Cooldown. */
@@ -119,7 +146,7 @@ export function dealClick(s: GameState): number | false {
   const gain = dealValue(s);
   s.money += gain;
   s.stats.totalEarned += gain;
-  s.clickCooldown = DEAL_COOLDOWN;
+  s.clickCooldown = dealCooldown(s);
   return gain;
 }
 
@@ -142,6 +169,20 @@ export function hardwareIncomeDelta(s: GameState, hwId: string): number {
   s.hw[hwId] = (s.hw[hwId] ?? 0) + 1;
   const after = baseIncome(s);
   s.hw[hwId] -= 1;
+  return after - before;
+}
+
+/**
+ * Effektiver Zuwachs einer Schulung in €/s **bei aktivem Spielen** (jeder
+ * Cooldown genutzt): Klick-Einkommensrate = dealMult/Cooldown × Gewinn/s.
+ * Die UI zeigt diese Zahl statt der Rohwerte (UI-Regel aus der Spec).
+ * 0 bei reinen Incident-Schulungen — dort erklärt die Beschreibung den Effekt.
+ */
+export function trainingActiveRateDelta(s: GameState, trainingId: string): number {
+  const before = (dealMult(s) / dealCooldown(s)) * baseIncome(s);
+  s.trainings.push(trainingId);
+  const after = (dealMult(s) / dealCooldown(s)) * baseIncome(s);
+  s.trainings.pop();
   return after - before;
 }
 
@@ -197,5 +238,15 @@ export function buyUpgrade(s: GameState, upgradeId: string): boolean {
   if (s.money < def.price) return false;
   s.money -= def.price;
   s.upgrades.push(upgradeId);
+  return true;
+}
+
+export function buyTraining(s: GameState, trainingId: string): boolean {
+  const def = TRAININGS.find((t) => t.id === trainingId);
+  if (!def || s.trainings.includes(trainingId)) return false;
+  if (!s.milestoneReached) return false; // Schulungen gehören zu Phase 2
+  if (s.money < def.price) return false;
+  s.money -= def.price;
+  s.trainings.push(trainingId);
   return true;
 }
