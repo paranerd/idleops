@@ -39,10 +39,14 @@
         <div class="stat stat--valuation" id="valuation-stat" hidden>
           <span class="stat__value" id="valuation"></span>
           <span class="stat__label">
-            Bewertung <span id="valuation-next"></span>
+            Bewertung
             <button id="valuation-info-btn" class="info-btn" aria-label="Term Sheet, Finanzierung & Exit" aria-expanded="false">i<span class="info-btn__badge" id="funding-badge" hidden></span></button>
           </span>
           <div class="popover popover--wide" id="valuation-popover" hidden>
+            <div class="next-round" id="next-round" hidden>
+              <div class="next-round__label" id="next-round-label"></div>
+              <div class="next-round__bar"><div class="next-round__fill" id="next-round-fill"></div></div>
+            </div>
             <h3>Term Sheet</h3>
             <div class="breakdown">
               <div class="breakdown__row"><span>📈 Ertragskraft <small>(nachhaltiger Gewinn/s × 2.000)</small></span><strong id="ts-ertrag"></strong></div>
@@ -148,6 +152,7 @@
         </div>
         <div class="overlay__actions overlay__actions--sticky">
           <span class="overlay__hint" id="perk-hint"></span>
+          <button id="exit-cancel-btn" class="btn btn--ghost">Doch nicht verkaufen</button>
           <button id="new-run-btn" class="btn btn--danger">Neu gründen 🚀</button>
         </div>
       </div>

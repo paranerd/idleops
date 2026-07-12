@@ -65,37 +65,24 @@ resetBtn.addEventListener('click', () => {
 });
 
 // ----------------------------- Der Exit -----------------------------
-// Verkaufen passiert im Bewertungs-Popover (Term Sheet), mit Zwei-Klick-
-// Bestätigung (der Verkauf ist endgültig). Danach öffnet das Overlay den
-// Perk-Shop → "Neu gründen".
+// Verkaufen passiert im Bewertungs-Popover (Term Sheet) mit EINEM Klick. Der
+// Verkauf ist erst mit "Neu gründen" endgültig — bis dahin ist er über
+// "Doch nicht verkaufen" im Perk-Overlay vollständig zurücknehmbar (der Run
+// läuft unberührt weiter, Meta wird auf den Stand vor dem Verkauf zurückgesetzt).
 
 const overlay = document.getElementById('exit-overlay') as HTMLElement;
 const sellBtn = document.getElementById('sell-btn') as HTMLButtonElement;
 
-// Zwei-Klick-Bestätigung wie beim Reset (kein confirm() — blockiert den Browser)
-let sellArmed = false;
-let sellResetTimer = 0;
-function disarmSell(): void {
-  sellArmed = false;
-  sellBtn.classList.remove('btn--armed');
-  sellBtn.textContent = 'Verkaufen (Exit) 💸';
-}
+// Snapshot des Meta-Stands vor dem (vorläufigen) Verkauf — für "Doch nicht".
+let metaBeforeSell: MetaState | null = null;
+
 sellBtn.addEventListener('click', (e) => {
   e.stopPropagation();
-  if (!sellArmed) {
-    sellArmed = true;
-    sellBtn.classList.add('btn--armed');
-    sellBtn.textContent = 'Wirklich verkaufen? (endgültig)';
-    window.clearTimeout(sellResetTimer);
-    sellResetTimer = window.setTimeout(disarmSell, 3000);
-    return;
-  }
-  window.clearTimeout(sellResetTimer);
-  disarmSell();
   doSell();
 });
 
 function doSell(): void {
+  metaBeforeSell = structuredClone(meta);
   const proceeds = exitProceeds(state);
   const soldValuation = valuation(state);
   const buyer = buyerFor(soldValuation);
@@ -113,6 +100,20 @@ function doSell(): void {
   overlay.hidden = false;
   renderExitOverlay(meta);
 }
+
+// "Doch nicht verkaufen": Verkauf (inkl. etwaiger Perk-Käufe) rückgängig,
+// zurück in den laufenden Run.
+document.getElementById('exit-cancel-btn')!.addEventListener('click', () => {
+  if (metaBeforeSell) {
+    // Meta-Objekt in place zurücksetzen (bleibt dieselbe Referenz für buildPerkShop)
+    Object.assign(meta, metaBeforeSell);
+    meta.perks = { ...metaBeforeSell.perks };
+    metaBeforeSell = null;
+    saveMeta(meta);
+  }
+  overlay.hidden = true;
+  render(state);
+});
 
 // Perk-Shop einmal aufbauen (Buttons pro Perk, in zwei Klassen-Spalten).
 // Buttons bekommen stabile IDs, damit renderExitOverlay sie ohne Import findet.

@@ -707,11 +707,6 @@ body.shake {
     color: $gold;
     font-size: 1.3rem;
   }
-  #valuation-next {
-    color: $text-dim;
-    font-weight: 400;
-    font-size: 0.78rem;
-  }
 }
 
 // Term-Sheet-Popover: Detail-Zeilen dürfen umbrechen
@@ -821,6 +816,37 @@ body.shake {
   overflow-y: auto;
 }
 
+// Fortschritt zur nächsten Finanzierungsrunde — oben im Bewertungs-Popover
+.next-round {
+  margin-bottom: 0.75rem;
+  padding-bottom: 0.6rem;
+  border-bottom: 1px solid $panel-border;
+
+  &__label {
+    font-size: 0.78rem;
+    color: $text-dim;
+    margin-bottom: 5px;
+
+    strong {
+      color: $gold;
+    }
+  }
+
+  &__bar {
+    height: 7px;
+    border-radius: 4px;
+    background: $panel-border;
+    overflow: hidden;
+  }
+
+  &__fill {
+    height: 100%;
+    border-radius: 4px;
+    background: $gold;
+    transition: width 0.4s ease;
+  }
+}
+
 // Badge am (i)-Button, wenn ein Term Sheet auf dem Tisch liegt
 .info-btn {
   position: relative;
@@ -848,15 +874,6 @@ body.shake {
   width: 100%;
   justify-content: center;
   margin: 0.6rem 0;
-}
-
-// "Wirklich verkaufen?"-Zustand
-.btn--armed {
-  animation: armed-pulse 0.8s ease-in-out infinite;
-}
-@keyframes armed-pulse {
-  0%, 100% { filter: brightness(1); }
-  50% { filter: brightness(1.35); }
 }
 
 // Kleine Buttons in den Finanzierungs-Zeilen

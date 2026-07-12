@@ -692,19 +692,13 @@ function renderValuation(s: GameState): void {
   if (!visible) return;
   const v = valuation(s);
   $('valuation').innerHTML = withCoinSvg(`${s.stats.unicornSeen ? '🦄 ' : ''}${fmtMoney(v)}`);
-  // Fortschritt zur nächsten Sprosse der Funding-Leiter
-  const next = nextRound(s);
-  $('valuation-next').textContent = s.valuationHighWater >= UNICORN_VALUATION
-    ? '· Unicorn!'
-    : next
-      ? `· ${next.name} ab ${fmtMoney(next.threshold).replace('🪙 ', '')}`
-      : `· 🦄 ab ${fmtMoney(UNICORN_VALUATION).replace('🪙 ', '')}`;
 
   // Badge am (i)-Button, wenn ein Term Sheet auf dem Tisch liegt
   $('funding-badge').hidden = !hasPendingOffer(s);
 
   const pop = $('valuation-popover');
   if (!pop.hidden) {
+    renderNextRound(s);
     $('ts-ertrag').innerHTML = withCoinSvg(fmtMoney(ertragskraft(s)));
     $('ts-mult').textContent = fmtFactor(valuationMultiple(s));
     $('ts-mult-detail').textContent =
@@ -718,6 +712,46 @@ function renderValuation(s: GameState): void {
     $('ts-proceeds').innerHTML = withCoinSvg(fmtMoney(exitProceeds(s)));
     renderFundingRows(s);
   }
+}
+
+/**
+ * Fortschritt zur nächsten Sprosse der Funding-Leiter — oben im Popover
+ * (ersetzt das "Seed ab 1 M" im Header). Balken misst den Bewertungs-
+ * Hochwasserstand gegen die nächste Schwelle.
+ */
+function renderNextRound(s: GameState): void {
+  const block = $('next-round');
+  const label = $('next-round-label');
+  const fill = $('next-round-fill');
+  block.hidden = false;
+
+  if (s.valuationHighWater >= UNICORN_VALUATION) {
+    label.innerHTML = '🦄 <strong>Unicorn erreicht</strong> — weiterspielen lohnt sich trotzdem';
+    fill.style.width = '100%';
+    return;
+  }
+
+  const next = nextRound(s);
+  const target = next ? next.threshold : UNICORN_VALUATION;
+  const targetName = next ? next.name : 'Unicorn 🦄';
+  const pct = Math.min(100, (s.valuationHighWater / target) * 100);
+  fill.style.width = `${pct.toFixed(1)}%`;
+
+  if (next) {
+    const status = roundStatus(s, next);
+    if (status === 'offered') {
+      label.innerHTML = `✍️ <strong>${targetName}</strong>: Angebot liegt vor — annehmen unten`;
+      return;
+    }
+    if (status === 'trackGate') {
+      label.innerHTML = `<strong>${targetName}</strong>: Bewertung reicht — braucht ${next.minExits} Exit${next.minExits > 1 ? 's' : ''}`;
+      return;
+    }
+  }
+  const remaining = Math.max(0, target - s.valuationHighWater);
+  label.innerHTML = withCoinSvg(
+    `Nächste Runde: <strong>${targetName}</strong> ab ${fmtMoney(target)} · noch ${fmtMoney(remaining)}`,
+  );
 }
 
 /** Finanzierungsrunden-Zeilen im Bewertungs-Popover. */

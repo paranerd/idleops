@@ -138,10 +138,10 @@ await page2.goto('http://localhost:4173/');
 await page2.waitForTimeout(600);
 page = page2; // ab hier im Endgame-Context weiterarbeiten
 
-// Bewertungs-Anzeige + Rating im Header
+// Bewertungs-Anzeige + Rating im Header (kein "Seed ab 1M" mehr im Header)
 const valVisible = await page.locator('#valuation-stat').isVisible();
 console.log('Bewertungs-Stat sichtbar:', valVisible, '| Wert:', (await page.textContent('#valuation')).trim());
-console.log('Fortschritt zur nächsten Runde:', (await page.textContent('#valuation-next')).trim());
+console.log('Header-Label (soll nur "Bewertung"):', (await page.textContent('.stat--valuation .stat__label')).replace(/\s+/g, ' ').trim());
 console.log('Header-Rating (Rep 60 → soll BBB):', (await page.textContent('#rep-rating')).trim());
 console.log('Funding-Badge sichtbar (Seed-Angebot liegt vor):', await page.locator('#funding-badge').isVisible());
 
@@ -150,9 +150,11 @@ const staffRow = page.locator('#team-list .item', { hasText: 'Staff' });
 console.log('Staff-Zeile sichtbar:', await staffRow.isVisible().catch(() => false),
             '| Bedingung:', (await staffRow.locator('.item__meta').textContent().catch(() => '—'))?.trim());
 
-// Bewertungs-Popover = Investor-Hub: Term Sheet + Erlös + Finanzierung
+// Bewertungs-Popover = Investor-Hub: Fortschrittsbalken + Term Sheet + Finanzierung
 await page.click('#valuation-info-btn');
 await page.waitForTimeout(150);
+console.log('Fortschritt zur nächsten Runde (im Popover):', (await page.textContent('#next-round-label')).replace(/\s+/g, ' ').trim(),
+            '| Balken:', await page.locator('#next-round-fill').evaluate((el) => el.style.width));
 console.log('Term Sheet — Ertragskraft:', (await page.textContent('#ts-ertrag')).trim(),
             '| Multiple:', (await page.textContent('#ts-mult')).trim(),
             '| Bewertung:', (await page.textContent('#ts-total')).trim(),
@@ -165,30 +167,39 @@ await page.screenshot({ path: 'screenshot-hub.png' });
 // Seed annehmen (Accept-Button in der ersten Fund-Zeile) -> Cash rein, VPS frei
 await page.click('#funding-list .fund-item:first-child .fund-item__actions .btn--buy');
 await page.waitForTimeout(300);
-console.log('Nach Seed — Geld:', (await page.textContent('#money')).trim());
+const moneyAfterSeed = (await page.textContent('#money')).trim();
+console.log('Nach Seed — Geld:', moneyAfterSeed);
 const vpsVisible = await page.locator('#hw-list .item', { hasText: 'VPS' }).isVisible().catch(() => false);
 console.log('VPS-Stufe nach Seed sichtbar:', vpsVisible);
 
-// Verkaufen: zwei-Klick-Bestätigung im Popover
-await page.click('#sell-btn'); // scharf schalten
-await page.waitForTimeout(120);
-console.log('Sell-Button scharf:', (await page.textContent('#sell-btn')).trim());
-await page.click('#sell-btn'); // bestätigen
+// Verkaufen: EIN Klick öffnet direkt das Perk-Overlay (keine Vorab-Bestätigung mehr)
+await page.click('#sell-btn');
 await page.waitForTimeout(300);
-const overlayVisible = await page.locator('#exit-overlay').isVisible();
-console.log('Perk-Overlay nach Verkauf sichtbar:', overlayVisible,
+console.log('Perk-Overlay nach Verkauf sichtbar:', await page.locator('#exit-overlay').isVisible(),
             '| Verkauft:', (await page.textContent('#sold-info')).trim(),
             '| Bank:', (await page.textContent('#perk-bank')).trim());
 const perkRows = await page.locator('#perk-list-decke .item, #perk-list-tempo .item').count();
 console.log('Perk-Zeilen:', perkRows, '(soll 6)');
 
-// Punkt 6: Screen muss abschließbar sein, auch wenn kein Perk leistbar
+// Punkt 1: "Doch nicht verkaufen" nimmt den Verkauf zurück (Overlay weg, Run läuft weiter)
+await page.click('#exit-cancel-btn');
+await page.waitForTimeout(200);
+const overlayAfterCancel = await page.locator('#exit-overlay').isVisible();
+const moneyAfterCancel = (await page.textContent('#money')).trim();
+console.log('Nach "Doch nicht": Overlay sichtbar:', overlayAfterCancel, '(soll false)',
+            '| Geld unverändert:', moneyAfterCancel, `(war ${moneyAfterSeed})`);
+
+// Erneut verkaufen für den Perk-Screenshot + Abschluss-Check
+await page.click('#valuation-info-btn');
+await page.waitForTimeout(120);
+await page.click('#sell-btn');
+await page.waitForTimeout(250);
 const netzwerkBtn = page.locator('#perk-btn-netzwerk');
 console.log('Netzwerk-Button:', (await netzwerkBtn.textContent()).trim(), '| disabled:', await netzwerkBtn.isDisabled());
 const newRunBtn = page.locator('#new-run-btn');
-console.log('Neu-gründen-Button sichtbar:', await newRunBtn.isVisible(),
-            '| Label:', (await newRunBtn.textContent()).trim(),
-            '| Hinweis:', (await page.textContent('#perk-hint')).trim());
+const cancelBtn = page.locator('#exit-cancel-btn');
+console.log('Abschluss-Aktionen sichtbar — Neu gründen:', await newRunBtn.isVisible(), `(${(await newRunBtn.textContent()).trim()})`,
+            '| Doch nicht:', await cancelBtn.isVisible());
 
 await page.screenshot({ path: 'screenshot-perks.png' });
 console.log('Endgame-Fehler:', errors.length ? errors : 'keine');
