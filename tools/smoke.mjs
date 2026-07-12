@@ -128,8 +128,13 @@ const endSave = {
   lastSave: Date.now(),
 };
 const ctx = await browser.newContext({ viewport: { width: 1280, height: 860 } });
+// EINMALIG injizieren (Guard), sonst würde der "Neu gründen"-Reload den
+// frischen Run wieder mit dem Endgame-Stand überschreiben.
 await ctx.addInitScript((save) => {
-  localStorage.setItem('it-idle-clicker-v3', JSON.stringify(save));
+  if (!localStorage.getItem('__smoke_injected')) {
+    localStorage.setItem('it-idle-clicker-v3', JSON.stringify(save));
+    localStorage.setItem('__smoke_injected', '1');
+  }
 }, endSave);
 const page2 = await ctx.newPage();
 page2.on('pageerror', (e) => errors.push(String(e)));
@@ -202,6 +207,22 @@ console.log('Abschluss-Aktionen sichtbar — Neu gründen:', await newRunBtn.isV
             '| Doch nicht:', await cancelBtn.isVisible());
 
 await page.screenshot({ path: 'screenshot-perks.png' });
+
+// Punkt: "Neu gründen" startet wirklich einen frischen Run (Regressions-Check
+// für den beforeunload-Autosave-Bug — sonst lud nach dem Reload der ALTE Run).
+// Erst einen leistbaren Perk kaufen (Angel 2 M, Bank 3,26 M), damit auch der
+// Perk-Übertrag geprüft wird (Angel-Startgeld = 2.000).
+await page.click('#perk-btn-angel');
+await page.waitForTimeout(150);
+await page.click('#new-run-btn');
+await page.waitForLoadState('load');
+await page.waitForTimeout(600);
+const moneyNewRun = (await page.textContent('#money')).trim();
+const valHiddenNewRun = !(await page.locator('#valuation-stat').isVisible());
+const teamRowsNewRun = await page.locator('#team-list .item:visible').count();
+console.log(`Nach "Neu gründen": Geld ${moneyNewRun} (soll ~2,00 k Angel-Startgeld, NICHT 2,x M),`,
+            `Bewertung versteckt ${valHiddenNewRun} (soll true), Team-Zeilen ${teamRowsNewRun} (soll 2)`);
+
 console.log('Endgame-Fehler:', errors.length ? errors : 'keine');
 
 console.log('\nFehler auf der Seite:', errors.length ? errors : 'keine');

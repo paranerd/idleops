@@ -147,9 +147,14 @@ function buildPerkShop(): void {
 }
 
 document.getElementById('new-run-btn')!.addEventListener('click', () => {
-  // Neuer Run mit den gekauften Perks; Meta bleibt, Run-State wird frisch
+  // Neuer Run mit den gekauften Perks; Meta bleibt, Run-State wird frisch.
+  // WICHTIG: state-Objekt IN PLACE mutieren, nicht neu zuweisen — die
+  // Autosave-Handler (setupAutosave) halten eine Referenz auf genau dieses
+  // Objekt. Ein neu zugewiesenes Objekt würde beim reload() vom beforeunload-
+  // Autosave des ALTEN Objekts überschrieben → der Reload zeigte wieder den
+  // alten Run ("Neu gründen tut scheinbar nichts").
   saveMeta(meta);
-  state = initialState(meta);
+  Object.assign(state, initialState(meta));
   save(state);
   window.location.reload();
 });
