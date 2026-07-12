@@ -610,6 +610,25 @@ body.shake {
     background: transparent;
     color: $text-dim;
   }
+
+  &--danger {
+    background: $danger;
+    border-color: $danger;
+    font-weight: 700;
+    color: #fff;
+
+    &:hover:not(:disabled) {
+      background: color.adjust($danger, $lightness: -8%);
+    }
+  }
+
+  // "Aus eigener Tasche"-Bootstrap-Kauf im Runden-Popover
+  &--self-unlock {
+    margin-top: 0.6rem;
+    width: 100%;
+    min-width: 0;
+    font-size: 0.8rem;
+  }
 }
 
 @keyframes pulse {
@@ -670,5 +689,117 @@ body.shake {
 
   &--gold {
     border-left-color: $gold;
+  }
+}
+
+// ----------------------------- Bewertung & Endgame -----------------------------
+
+// Bewertungs-Stat in der Topbar (ab Produkt-Markt-Fit sichtbar)
+.stat--valuation {
+  .stat__value {
+    color: $gold;
+    font-size: 1.3rem;
+  }
+  #valuation-next {
+    color: $text-dim;
+    font-weight: 400;
+    font-size: 0.78rem;
+  }
+}
+
+// Term-Sheet-Popover: Detail-Zeilen dürfen umbrechen
+.breakdown__row small {
+  color: $text-dim;
+  font-weight: 400;
+  font-size: 0.7rem;
+  display: block;
+}
+
+.breakdown__row--proceeds strong {
+  color: $gold;
+  font-size: 1.1rem;
+}
+
+// Exit-Zeile am Fuß des Finanzierungs-Panels
+.exit-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  margin-top: 0.75rem;
+  padding: 0.7rem 0.75rem;
+  border: 1px solid $gold;
+  border-radius: 6px;
+  background: rgba($gold, 0.07);
+
+  &__info .item__title {
+    font-weight: 600;
+  }
+  &__info .item__meta {
+    color: $text;
+    font-size: 0.8rem;
+    margin-top: 3px;
+  }
+}
+
+// ----------------------------- Overlay (Exit / Perks) -----------------------------
+
+.overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 60;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1rem;
+  background: rgba(0, 0, 0, 0.72);
+  backdrop-filter: blur(2px);
+
+  &__card {
+    background: $panel;
+    border: 1px solid $panel-border;
+    border-radius: 10px;
+    padding: 1.5rem;
+    width: min(560px, 100%);
+    max-height: 90vh;
+    overflow-y: auto;
+    box-shadow: 0 12px 40px rgba(0, 0, 0, 0.5);
+
+    h2 {
+      margin-bottom: 0.75rem;
+    }
+  }
+
+  &__buyer,
+  &__bank {
+    color: $text-dim;
+    font-size: 0.9rem;
+    margin: 0 0 1rem;
+
+    strong {
+      color: $text;
+    }
+  }
+
+  &__actions {
+    display: flex;
+    gap: 0.75rem;
+    justify-content: flex-end;
+    margin-top: 1.25rem;
+  }
+}
+
+// Unicorn-Feier: kurzer goldener Blitz über den Bildschirm
+.unicorn-flash {
+  animation: unicorn 2s ease;
+}
+
+@keyframes unicorn {
+  0%,
+  100% {
+    box-shadow: inset 0 0 0 0 rgba($gold, 0);
+  }
+  30% {
+    box-shadow: inset 0 0 120px 20px rgba($gold, 0.45);
   }
 }

@@ -19,7 +19,7 @@ await new Promise((r) => server.listen(4173, r));
 const browser = await chromium.launch({
   executablePath: process.env.CHROMIUM_PATH || undefined,
 });
-const page = await browser.newPage({ viewport: { width: 1280, height: 860 } });
+let page = await browser.newPage({ viewport: { width: 1280, height: 860 } });
 const errors = [];
 page.on('pageerror', (e) => errors.push(String(e)));
 page.on('console', (m) => m.type() === 'error' && errors.push(m.text()));
@@ -104,7 +104,89 @@ const moneyReset = await page.textContent('#money');
 const teamReset = (await page.textContent('#team-list .item:first-child .item__count')).trim();
 console.log(`Nach Reset — Geld: ${moneyReset} (soll ~0 €), Intern-Anzahl: "${teamReset}" (soll leer)`);
 
-console.log('Fehler auf der Seite:', errors.length ? errors : 'keine');
+// ============================================================================
+// 10) Endgame-Smoke: Bewertung, Finanzierung, Exit, Perks.
+// Wir injizieren einen fortgeschrittenen Spielstand per addInitScript in einen
+// FRISCHEN Context (sonst überschreibt der beforeunload-Autosave der schon
+// geladenen Seite die Injektion). So sieht die App den Stand beim ersten Laden.
+// ============================================================================
+console.log('\n=== Endgame ===');
+const endSave = {
+  money: 2_000_000, rep: 60,
+  hw: { laptop: 1, pi: 5, tower: 10 },
+  emp: { intern: 5, junior: 10, senior: 8 },
+  unlockedRanks: { intern: true, junior: true, senior: true },
+  upgrades: [], trainings: ['networking', 'aws-cert'],
+  incident: null, spikeRemaining: 0, clickCooldown: 0,
+  milestoneReached: true, pmfReached: true,
+  emaIncome: 300, sustainedIncome: 300,
+  valuationHighWater: 2_000_000, rounds: [], selfUnlocked: [],
+  founderShare: 1, perks: {}, exitsBefore: 0,
+  revealed: [], stats: { clicks: 0, totalEarned: 5_000_000, incidents: 0, spikes: 0 },
+  lastSave: Date.now(),
+};
+const ctx = await browser.newContext({ viewport: { width: 1280, height: 860 } });
+await ctx.addInitScript((save) => {
+  localStorage.setItem('it-idle-clicker-v3', JSON.stringify(save));
+}, endSave);
+const page2 = await ctx.newPage();
+page2.on('pageerror', (e) => errors.push(String(e)));
+page2.on('console', (m) => m.type() === 'error' && errors.push(m.text()));
+await page2.goto('http://localhost:4173/');
+await page2.waitForTimeout(600);
+page = page2; // ab hier im Endgame-Context weiterarbeiten
+
+// Bewertungs-Anzeige sichtbar?
+const valVisible = await page.locator('#valuation-stat').isVisible();
+console.log('Bewertungs-Stat sichtbar:', valVisible, '| Wert:', (await page.textContent('#valuation')).trim());
+console.log('Fortschritt zur nächsten Runde:', (await page.textContent('#valuation-next')).trim());
+
+// Finanzierungs-Panel + Seed-Angebot (Bewertung 2 M > Schwelle 1 M)
+const fundingVisible = await page.locator('#funding-section').isVisible();
+const seedMeta = (await page.textContent('#funding-list .item:first-child .item__meta')).trim();
+console.log('Finanzierungs-Panel sichtbar:', fundingVisible, '| Seed:', seedMeta);
+
+// Term-Sheet-Popover der Bewertung öffnen
+await page.click('#valuation-info-btn');
+await page.waitForTimeout(150);
+console.log('Term Sheet — Ertragskraft:', (await page.textContent('#ts-ertrag')).trim(),
+            '| Multiple:', (await page.textContent('#ts-mult')).trim(),
+            '| Total:', (await page.textContent('#ts-total')).trim());
+await page.keyboard.press('Escape');
+
+// Seed annehmen -> Cash rein, Ära offen (VPS erscheint)
+await page.click('#funding-list .item:first-child > .btn--buy');
+await page.waitForTimeout(300);
+console.log('Nach Seed — Geld:', (await page.textContent('#money')).trim());
+const vpsVisible = await page.locator('#hw-list .item', { hasText: 'VPS' }).isVisible().catch(() => false);
+console.log('VPS-Stufe nach Seed sichtbar:', vpsVisible);
+
+// Exit-Overlay öffnen
+await page.click('#exit-btn');
+await page.waitForTimeout(200);
+const overlayVisible = await page.locator('#exit-overlay').isVisible();
+console.log('Exit-Overlay sichtbar:', overlayVisible,
+            '| Erlös:', (await page.textContent('#ex-proceeds')).trim(),
+            '| Käufer:', (await page.textContent('#exit-buyer')).trim());
+
+await page.screenshot({ path: 'screenshot-exit.png' });
+
+// Verkaufen -> Perk-Shop
+await page.click('#exit-confirm');
+await page.waitForTimeout(300);
+const perkPhaseVisible = await page.locator('#exit-phase-perks').isVisible();
+console.log('Perk-Shop sichtbar:', perkPhaseVisible, '| Bank:', (await page.textContent('#perk-bank')).trim());
+const perkRows = await page.locator('#perk-list-decke .item, #perk-list-tempo .item').count();
+console.log('Perk-Zeilen:', perkRows, '(soll 6)');
+
+// Netzwerk kaufen (Bank sollte reichen — 1 M Erlös, Netzwerk 15 M? nein)
+const netzwerkBtn = page.locator('#perk-btn-netzwerk');
+console.log('Netzwerk-Button:', (await netzwerkBtn.textContent()).trim(), '| disabled:', await netzwerkBtn.isDisabled());
+
+await page.screenshot({ path: 'screenshot-perks.png' });
+console.log('Endgame-Fehler:', errors.length ? errors : 'keine');
+
+console.log('\nFehler auf der Seite:', errors.length ? errors : 'keine');
 
 await browser.close();
 server.close();

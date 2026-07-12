@@ -5,31 +5,61 @@
 // ============================================================================
 
 import {
+  BOOTSTRAP_MOT_BONUS,
+  BUEROKRATIE_UPKEEP_MULT,
+  BUYERS,
   COST_GROWTH,
   DEAL_COOLDOWN,
   DEAL_INCOME_MULT,
   FOUNDER_MOTIVATION,
   FOUNDER_OUTPUT,
+  GRUENDER_BONUS_PER_TRAINING,
   HARDWARE,
   INCIDENTS,
   MOTIVATION_MAX,
   MOTIVATION_MIN,
+  PERKS,
   RANKS,
   REP_BASE_PER_MIN,
+  REP_EMP_RATE_CAP,
+  REP_EXPECTATION,
   REP_MAX,
+  REP_MULTIPLE_MAX_BONUS,
   REP_PER_EMPLOYEE_PER_MIN,
+  REP_SOFTCAP,
+  REPORTING_INCIDENT_MULT,
+  ROUNDS,
   SPIKE_MULT,
   TRAININGS,
   UPGRADES,
+  VALUATION_HW_RESIDUAL,
+  VALUATION_INCOME_MULT,
+  VALUATION_TEAM_MULT,
+  WACHSTUMSDRUCK_MOT_MALUS,
+  type PerkDef,
+  type RoundDef,
 } from './config';
-import type { GameState } from './state';
+import type { GameState, MetaState } from './state';
+
+/** Perk-Stufe des laufenden Runs (bei Gründung eingefroren). */
+export function perkLevel(s: GameState, perkId: string): number {
+  return s.perks?.[perkId] ?? 0;
+}
 
 export function capacity(s: GameState): number {
   return HARDWARE.reduce((sum, h) => sum + h.capacity * (s.hw[h.id] ?? 0), 0);
 }
 
 export function upkeep(s: GameState): number {
-  return HARDWARE.reduce((sum, h) => sum + h.upkeep * (s.hw[h.id] ?? 0), 0);
+  const base = HARDWARE.reduce((sum, h) => sum + h.upkeep * (s.hw[h.id] ?? 0), 0);
+  // Bürokratie-Hürden (Series A / C): +10 % Betriebskosten pro Runde
+  let mult = 1;
+  for (const r of ROUNDS) {
+    if ((r.hurdle === 'buerokratie' || r.hurdle === 'reorg') && s.rounds.includes(r.id)) {
+      mult *= BUEROKRATIE_UPKEEP_MULT;
+    }
+  }
+  return base * mult;
 }
 
 export function output(s: GameState): number {
@@ -48,6 +78,14 @@ export function motivation(s: GameState): number {
   for (const u of UPGRADES) {
     if (s.upgrades.includes(u.id) && u.effect.type === 'motivation') bonus += u.effect.bonus;
   }
+  // Bootstrap-Bonus: sobald das erste Term Sheet auf dem Tisch liegt, aber
+  // kein Investor an Bord ist ("Wir gehören uns selbst"). Vorher neutral,
+  // damit das validierte Early-Game-Balancing unberührt bleibt.
+  if (s.rounds.length === 0 && s.valuationHighWater >= ROUNDS[0].threshold) {
+    bonus += BOOTSTRAP_MOT_BONUS;
+  }
+  // Series-B-Hürde: unter der Reputations-Erwartung wird das Team nervös
+  if (s.rounds.includes('series-b') && s.rep < REP_EXPECTATION) bonus -= WACHSTUMSDRUCK_MOT_MALUS;
   return Math.min(MOTIVATION_MAX, Math.max(MOTIVATION_MIN, total / heads + bonus));
 }
 
@@ -60,6 +98,10 @@ export function incomeMult(s: GameState): number {
   for (const u of UPGRADES) {
     if (s.upgrades.includes(u.id) && u.effect.type === 'incomeMult') m *= u.effect.mult;
   }
+  // Netzwerk-Perk: ×1,25 pro Stufe (multiplikativ)
+  for (const p of PERKS) {
+    if (p.effect.type === 'incomeMult') m *= Math.pow(p.effect.multPerLevel, perkLevel(s, p.id));
+  }
   return m;
 }
 
@@ -68,6 +110,8 @@ export function incidentProbMult(s: GameState): number {
   for (const u of UPGRADES) {
     if (s.upgrades.includes(u.id) && u.effect.type === 'incidentMult') m *= u.effect.mult;
   }
+  // Seed-Hürde: Investoren-Reporting erhöht das Incident-Risiko
+  if (s.rounds.includes('seed')) m *= REPORTING_INCIDENT_MULT;
   return m;
 }
 
@@ -82,9 +126,16 @@ export function riskPoints(s: GameState): number {
   return RANKS.reduce((sum, r) => sum + r.riskPoints * (s.emp[r.id] ?? 0), 0);
 }
 
-/** Reputationsaufbau pro Minute (incident-frei). */
+/**
+ * Reputationsaufbau pro Minute (incident-frei). Logistisch: je höher die
+ * Reputation, desto zäher der weitere Aufbau — früh (Rep 8/25) kaum spürbar,
+ * spät echte Arbeit. Der Angestellten-Beitrag ist gedeckelt, damit große
+ * Teams die Kurve nicht trivialisieren.
+ */
 export function repPerMinute(s: GameState): number {
-  return REP_BASE_PER_MIN + REP_PER_EMPLOYEE_PER_MIN * employeeCount(s);
+  const rate =
+    REP_BASE_PER_MIN + Math.min(REP_EMP_RATE_CAP, REP_PER_EMPLOYEE_PER_MIN * employeeCount(s));
+  return rate * Math.max(0, 1 - s.rep / REP_SOFTCAP);
 }
 
 /**
@@ -188,14 +239,36 @@ export function trainingActiveRateDelta(s: GameState, trainingId: string): numbe
 
 // ----------------------------- Preise -----------------------------
 
+/** Rabatt aus "Alte Kollegen" auf Einstellungen und Freischaltungen. */
+export function hireDiscount(s: GameState): number {
+  let m = 1;
+  for (const p of PERKS) {
+    if (p.effect.type === 'hireDiscount') m *= Math.pow(p.effect.multPerLevel, perkLevel(s, p.id));
+  }
+  return m;
+}
+
 export function hardwarePrice(s: GameState, hwId: string): number {
   const def = HARDWARE.find((h) => h.id === hwId)!;
-  return def.basePrice * Math.pow(COST_GROWTH, s.hw[hwId] ?? 0);
+  return def.basePrice * Math.pow(def.costGrowth ?? COST_GROWTH, s.hw[hwId] ?? 0);
 }
 
 export function hirePrice(s: GameState, rankId: string): number {
   const def = RANKS.find((r) => r.id === rankId)!;
-  return def.basePrice * Math.pow(COST_GROWTH, s.emp[rankId] ?? 0);
+  return def.basePrice * Math.pow(def.costGrowth ?? COST_GROWTH, s.emp[rankId] ?? 0) * hireDiscount(s);
+}
+
+export function unlockPrice(s: GameState, rankId: string): number {
+  const def = RANKS.find((r) => r.id === rankId)!;
+  return def.unlockCost * hireDiscount(s);
+}
+
+// ----------------------------- Ära-Gates (Finanzierungsrunden) -----------------------------
+
+/** Ist die Ära dieser Runde offen (Runde angenommen oder selbst freigekauft)? */
+export function roundUnlocked(s: GameState, roundId: string | undefined): boolean {
+  if (!roundId) return true;
+  return s.rounds.includes(roundId) || s.selfUnlocked.includes(roundId);
 }
 
 // ----------------------------- Aktionen (mutieren den State) -----------------------------
@@ -203,6 +276,7 @@ export function hirePrice(s: GameState, rankId: string): number {
 export function buyHardware(s: GameState, hwId: string): boolean {
   const def = HARDWARE.find((h) => h.id === hwId);
   if (!def || def.basePrice === 0) return false;
+  if (!roundUnlocked(s, def.requiresRound)) return false;
   const price = hardwarePrice(s, hwId);
   if (s.money < price) return false;
   s.money -= price;
@@ -213,8 +287,10 @@ export function buyHardware(s: GameState, hwId: string): boolean {
 export function unlockRank(s: GameState, rankId: string): boolean {
   const def = RANKS.find((r) => r.id === rankId);
   if (!def || s.unlockedRanks[rankId]) return false;
-  if (s.rep < def.repThreshold || s.money < def.unlockCost) return false;
-  s.money -= def.unlockCost;
+  if (!roundUnlocked(s, def.requiresRound)) return false;
+  const price = unlockPrice(s, rankId);
+  if (s.rep < def.repThreshold || s.money < price) return false;
+  s.money -= price;
   s.unlockedRanks[rankId] = true;
   return true;
 }
@@ -248,5 +324,154 @@ export function buyTraining(s: GameState, trainingId: string): boolean {
   if (s.money < def.price) return false;
   s.money -= def.price;
   s.trainings.push(trainingId);
+  return true;
+}
+
+// ============================================================================
+// Bewertung (Term Sheet) — Spec-Abschnitt "Bewertung & Meilensteine".
+// Bewertung = Ertragskraft × Multiple + Team-Wert + Hardware-Restwert + Cash.
+// Das Multiple wirkt NUR auf die Ertragskraft (Assets sind Assets — sonst
+// entsteht ein Feedback-Loop: Funding-Cash würde sich selbst multiplizieren).
+// ============================================================================
+
+/** Ertragskraft: nachhaltiger Gewinn/s (Hochwasserstand des 10-min-Schnitts) × Multiple-Basis. */
+export function ertragskraft(s: GameState): number {
+  return s.sustainedIncome * VALUATION_INCOME_MULT;
+}
+
+/** Team-Wert: Acquihire-Prämie pro Kopf (0,5 × Rang-Basispreis). */
+export function teamValue(s: GameState): number {
+  return RANKS.reduce((sum, r) => sum + VALUATION_TEAM_MULT * r.basePrice * (s.emp[r.id] ?? 0), 0);
+}
+
+/** Hardware-Restwert: 50 % der tatsächlich gezahlten Kaufpreise (geometrische Summe). */
+export function hardwareValue(s: GameState): number {
+  let total = 0;
+  for (const h of HARDWARE) {
+    const n = s.hw[h.id] ?? 0;
+    const bought = n - h.startCount; // Startgeräte waren gratis
+    if (bought <= 0 || h.basePrice === 0) continue;
+    const g = h.costGrowth ?? COST_GROWTH;
+    total += h.basePrice * ((Math.pow(g, bought) - 1) / (g - 1));
+  }
+  return total * VALUATION_HW_RESIDUAL;
+}
+
+export function repMultiple(s: GameState): number {
+  return 1 + REP_MULTIPLE_MAX_BONUS * (Math.min(s.rep, REP_MAX) / REP_MAX);
+}
+
+/** Der Käufer bezahlt die Schulungen des Gründers mit (Acquihire). */
+export function gruenderBonus(s: GameState): number {
+  return 1 + GRUENDER_BONUS_PER_TRAINING * s.trainings.length;
+}
+
+export function trackRecordBonus(s: GameState): number {
+  for (const p of PERKS) {
+    if (p.effect.type === 'valuationMult') return 1 + p.effect.bonusPerLevel * perkLevel(s, p.id);
+  }
+  return 1;
+}
+
+export function valuationMultiple(s: GameState): number {
+  return repMultiple(s) * gruenderBonus(s) * trackRecordBonus(s);
+}
+
+export function valuation(s: GameState): number {
+  return ertragskraft(s) * valuationMultiple(s) + teamValue(s) + hardwareValue(s) + s.money;
+}
+
+// ----------------------------- Finanzierungsrunden -----------------------------
+
+export type RoundStatus = 'accepted' | 'offered' | 'trackGate' | 'locked';
+
+/**
+ * Status einer Runde: angenommen / Angebot liegt vor / Bewertung erreicht,
+ * aber Track Record fehlt / noch nicht erreicht. Angebote triggern auf den
+ * HOCHWASSERSTAND der Bewertung und bleiben liegen (ein Rep-Einbruch zieht
+ * ein Term Sheet nicht zurück).
+ */
+export function roundStatus(s: GameState, def: RoundDef): RoundStatus {
+  if (s.rounds.includes(def.id)) return 'accepted';
+  if (s.valuationHighWater < def.threshold) return 'locked';
+  return s.exitsBefore >= def.minExits ? 'offered' : 'trackGate';
+}
+
+/** Kapitalspritze der Runde inkl. Investoren-Standing-Perk. */
+export function roundCash(s: GameState, def: RoundDef): number {
+  for (const p of PERKS) {
+    if (p.effect.type === 'fundingTerms') {
+      return def.cash * (1 + p.effect.cashMultPerLevel * perkLevel(s, p.id));
+    }
+  }
+  return def.cash;
+}
+
+/** Anteils-Abgabe der Runde inkl. Investoren-Standing-Perk (min. 5 Punkte). */
+export function roundDilution(s: GameState, def: RoundDef): number {
+  for (const p of PERKS) {
+    if (p.effect.type === 'fundingTerms') {
+      return Math.max(0.05, def.dilution - p.effect.dilutionReliefPerLevel * perkLevel(s, p.id));
+    }
+  }
+  return def.dilution;
+}
+
+export function acceptRound(s: GameState, roundId: string): boolean {
+  const def = ROUNDS.find((r) => r.id === roundId);
+  if (!def || roundStatus(s, def) !== 'offered') return false;
+  s.money += roundCash(s, def);
+  s.founderShare = Math.max(0, s.founderShare - roundDilution(s, def));
+  s.rounds.push(roundId);
+  return true;
+}
+
+/**
+ * Ära-Unlock "aus eigener Tasche": schaltet die Hardware/Ränge der Runde frei,
+ * ohne Investor — kein Cash, keine Dilution, keine Hürde. Teuer, aber der
+ * Bootstrap-Weg bleibt immer offen. Möglich, sobald das Angebot sichtbar wäre
+ * (Schwelle erreicht) — auch wenn der Track Record für Investoren fehlt.
+ */
+export function selfUnlockRound(s: GameState, roundId: string): boolean {
+  const def = ROUNDS.find((r) => r.id === roundId);
+  if (!def || s.rounds.includes(roundId) || s.selfUnlocked.includes(roundId)) return false;
+  if (s.valuationHighWater < def.threshold) return false;
+  if (s.money < def.selfUnlockPrice) return false;
+  s.money -= def.selfUnlockPrice;
+  s.selfUnlocked.push(roundId);
+  return true;
+}
+
+// ----------------------------- Der Exit -----------------------------
+
+/** Verkaufserlös: aktuelle Bewertung × Gründer-Anteil. */
+export function exitProceeds(s: GameState): number {
+  return valuation(s) * s.founderShare;
+}
+
+export function buyerFor(v: number): string {
+  let name = BUYERS[0].name;
+  for (const b of BUYERS) if (v >= b.minValuation) name = b.name;
+  return name;
+}
+
+// ----------------------------- Gründer-Perks (Meta) -----------------------------
+
+export function perkPrice(meta: MetaState, perkId: string): number {
+  const def = PERKS.find((p) => p.id === perkId)!;
+  return def.basePrice * Math.pow(def.priceGrowth, meta.perks[perkId] ?? 0);
+}
+
+export function perkMaxed(meta: MetaState, def: PerkDef): boolean {
+  return (meta.perks[def.id] ?? 0) >= def.maxLevel;
+}
+
+export function buyPerk(meta: MetaState, perkId: string): boolean {
+  const def = PERKS.find((p) => p.id === perkId);
+  if (!def || perkMaxed(meta, def)) return false;
+  const price = perkPrice(meta, perkId);
+  if (meta.bank < price) return false;
+  meta.bank -= price;
+  meta.perks[perkId] = (meta.perks[perkId] ?? 0) + 1;
   return true;
 }

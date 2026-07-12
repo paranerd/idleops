@@ -9,23 +9,33 @@ import {
   FOUNDER_OUTPUT,
   HARDWARE,
   INCIDENTS,
+  PERKS,
   RANKS,
+  ROUNDS,
   SPIKE_MULT,
   SPIKE_RESERVE_RATIO,
   TRAININGS,
+  UNICORN_VALUATION,
   UPGRADES,
+  type RoundDef,
   type TrainingDef,
 } from '../config';
 import {
+  acceptRound,
   buyHardware,
   buyTraining,
   buyUpgrade,
+  buyerFor,
   capacity,
   dealCooldown,
   dealMult,
   dealValue,
+  ertragskraft,
+  exitProceeds,
+  gruenderBonus,
   hardwareIncomeDelta,
   hardwarePrice,
+  hardwareValue,
   hire,
   hireIncomeDelta,
   hirePrice,
@@ -33,14 +43,27 @@ import {
   incomeMult,
   motivation,
   output,
+  perkMaxed,
+  perkPrice,
   repFactor,
+  repMultiple,
   repPerMinute,
+  roundCash,
+  roundDilution,
+  roundStatus,
+  roundUnlocked,
+  selfUnlockRound,
+  teamValue,
+  trackRecordBonus,
   trainingActiveRateDelta,
+  unlockPrice,
   unlockRank,
   upkeep,
+  valuation,
+  valuationMultiple,
 } from '../engine';
 import { clickFixIncident } from '../events';
-import type { GameState } from '../state';
+import type { GameState, MetaState } from '../state';
 import { fmtMoney, fmtRate, withCoinSvg } from './format';
 
 const $ = <T extends HTMLElement>(id: string): T => document.getElementById(id) as T;
@@ -86,6 +109,7 @@ const hwRows = new Map<string, Row>();
 const rankRows = new Map<string, Row>();
 const upgradeRows = new Map<string, Row>();
 const trainingRows = new Map<string, Row>();
+const fundingRows = new Map<string, Row>();
 
 // ----------------------------- Item-Popovers -----------------------------
 // Alle Detail-Infos einer Zeile leben hinter dem (i)-Button — die Zeile
@@ -245,14 +269,50 @@ export function buildUI(s: GameState, onAction: () => void): void {
     trainingRows.set(t.id, row);
   }
 
+  // Finanzierungsrunden — Angebote mit Cash, Anteilsabgabe und Hürde.
+  // Der Bootstrap-Weg ("aus eigener Tasche") lebt im (i)-Popover der Zeile.
+  const funding = $('funding-list');
+  for (const round of ROUNDS) {
+    const unlocks = [
+      ...RANKS.filter((r) => r.requiresRound === round.id).map((r) => `${r.icon} ${r.name}`),
+      ...HARDWARE.filter((h) => h.requiresRound === round.id).map((h) => `${h.icon} ${h.name}`),
+    ].join(', ');
+    const row = makeRow(
+      funding,
+      round.icon,
+      round.name,
+      `<div class="breakdown">
+        ${popRow('Kapitalspritze', '', 'cash')}
+        ${popRow('Anteilsabgabe', '', 'dilution')}
+        ${popRow('Schaltet frei', unlocks)}
+      </div>
+      <p class="popover__tip">Hürde: ${round.hurdleText}</p>
+      <p>Oder bootstrappen: Ära ohne Investor freikaufen — teuer, aber du behältst Anteile und ersparst dir die Hürde.</p>
+      <button class="btn btn--buy btn--self-unlock" data-round="${round.id}"></button>`,
+    );
+    row.button.addEventListener('click', () => {
+      acceptRound(s, round.id);
+      onAction();
+    });
+    const selfBtn = row.popover.querySelector('.btn--self-unlock') as HTMLButtonElement;
+    selfBtn.innerHTML = `${withCoinSvg(fmtMoney(round.selfUnlockPrice))} · aus eigener Tasche`;
+    selfBtn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      selfUnlockRound(s, round.id);
+      onAction();
+    });
+    fundingRows.set(round.id, row);
+  }
+
   $<HTMLButtonElement>('event-fix').addEventListener('click', () => {
     clickFixIncident(s);
     onAction();
   });
 
-  // Info-Popovers (Reputation & Gewinn-Aufschlüsselung)
+  // Info-Popovers (Reputation, Gewinn- & Bewertungs-Aufschlüsselung)
   wirePopover('rep-info-btn', 'rep-popover');
   wirePopover('income-info-btn', 'income-popover', onAction);
+  wirePopover('valuation-info-btn', 'valuation-popover', onAction);
 }
 
 /** Info-Button + Popover verdrahten; Klick außerhalb & Escape schließen. */
@@ -417,18 +477,23 @@ export function render(s: GameState): void {
     }
   }
 
-  // Team
+  // Team — Ränge mit Ära-Gate erscheinen erst, wenn die Runde offen ist
   for (const r of RANKS) {
     const row = rankRows.get(r.id)!;
-    const visible = reveal(s, `rank:${r.id}`, s.rep >= r.repThreshold * 0.5);
+    const visible = reveal(
+      s,
+      `rank:${r.id}`,
+      s.rep >= r.repThreshold * 0.5 && roundUnlocked(s, r.requiresRound),
+    );
     row.root.hidden = !visible;
     if (!visible) continue;
     row.count.textContent = s.emp[r.id] ? `× ${s.emp[r.id]}` : '';
     if (!s.unlockedRanks[r.id]) {
       const repOk = s.rep >= r.repThreshold;
-      setButton(row.button, ICON_LOCK, fmtMoney(r.unlockCost), 'Freischalten');
-      row.button.disabled = !repOk || s.money < r.unlockCost;
-      setAfford(row.button, repOk ? s.money : 0, r.unlockCost);
+      const price = unlockPrice(s, r.id);
+      setButton(row.button, ICON_LOCK, fmtMoney(price), 'Freischalten');
+      row.button.disabled = !repOk || s.money < price;
+      setAfford(row.button, repOk ? s.money : 0, price);
       row.meta.textContent = repOk
         ? 'Freischalten: Employer Branding'
         : `🔒 ab Reputation ${r.repThreshold}`;
@@ -473,7 +538,8 @@ export function render(s: GameState): void {
       s,
       `hw:${h.id}`,
       s.stats.totalEarned >= h.revealAtTotalEarned &&
-        (!h.revealAfterRankUnlock || !!s.unlockedRanks[h.revealAfterRankUnlock]),
+        (!h.revealAfterRankUnlock || !!s.unlockedRanks[h.revealAfterRankUnlock]) &&
+        roundUnlocked(s, h.requiresRound),
     );
     row.root.hidden = !visible;
     if (!visible) continue;
@@ -533,6 +599,10 @@ export function render(s: GameState): void {
     }
   }
 
+  // Bewertung & Finanzierung — sichtbar ab Produkt-Markt-Fit
+  renderValuation(s);
+  renderFunding(s);
+
   // Upgrades
   for (const u of UPGRADES) {
     const row = upgradeRows.get(u.id)!;
@@ -550,6 +620,152 @@ export function render(s: GameState): void {
       setButton(row.button, '', fmtMoney(u.price), 'Kaufen');
       row.button.disabled = s.money < u.price;
       setAfford(row.button, s.money, u.price);
+    }
+  }
+}
+
+// ----------------------------- Bewertung & Finanzierung -----------------------------
+
+/** Nächste noch nicht angenommene Runde (für die Fortschritts-Zeile). */
+function nextRound(s: GameState): RoundDef | null {
+  for (const r of ROUNDS) if (!s.rounds.includes(r.id)) return r;
+  return null;
+}
+
+function renderValuation(s: GameState): void {
+  const visible = reveal(s, 'valuation', s.pmfReached);
+  $('valuation-stat').hidden = !visible;
+  if (!visible) return;
+  const v = valuation(s);
+  $('valuation').innerHTML = withCoinSvg(`${s.stats.unicornSeen ? '🦄 ' : ''}${fmtMoney(v)}`);
+  // Fortschritt zur nächsten Sprosse der Funding-Leiter
+  const next = nextRound(s);
+  $('valuation-next').textContent = s.valuationHighWater >= UNICORN_VALUATION
+    ? '· Unicorn!'
+    : next
+      ? `· ${next.name} ab ${fmtMoney(next.threshold).replace('🪙 ', '')}`
+      : `· 🦄 ab ${fmtMoney(UNICORN_VALUATION).replace('🪙 ', '')}`;
+
+  if (!$('valuation-popover').hidden) {
+    $('ts-ertrag').innerHTML = withCoinSvg(fmtMoney(ertragskraft(s)));
+    $('ts-mult').textContent = fmtFactor(valuationMultiple(s));
+    $('ts-mult-detail').textContent =
+      `(Reputation ${fmtFactor(repMultiple(s))} · Gründer ${fmtFactor(gruenderBonus(s))}` +
+      (trackRecordBonus(s) > 1 ? ` · Track Record ${fmtFactor(trackRecordBonus(s))})` : ')');
+    $('ts-team').innerHTML = withCoinSvg(fmtMoney(teamValue(s)));
+    $('ts-hw').innerHTML = withCoinSvg(fmtMoney(hardwareValue(s)));
+    $('ts-cash').innerHTML = withCoinSvg(fmtMoney(s.money));
+    $('ts-total').innerHTML = withCoinSvg(fmtMoney(v));
+  }
+}
+
+function renderFunding(s: GameState): void {
+  const sectionVisible = reveal(s, 'funding', s.pmfReached);
+  $('funding-section').hidden = !sectionVisible;
+  if (!sectionVisible) return;
+
+  for (const round of ROUNDS) {
+    const row = fundingRows.get(round.id)!;
+    const status = roundStatus(s, round);
+    // Progressive disclosure: die nächste Sprosse wird als Sparziel sichtbar,
+    // sobald der Hochwasserstand in ihre Nähe kommt
+    const visible = reveal(
+      s,
+      `funding:${round.id}`,
+      status !== 'locked' || s.valuationHighWater >= round.threshold * 0.2,
+    );
+    row.root.hidden = !visible;
+    if (!visible) continue;
+
+    const selfBtn = row.popover.querySelector('.btn--self-unlock') as HTMLButtonElement;
+    const selfDone = s.selfUnlocked.includes(round.id);
+    if (!row.popover.hidden) {
+      (row.popover.querySelector('[data-pop="cash"]') as HTMLElement).innerHTML =
+        `<span class="gain">${withCoinSvg(`+${fmtMoney(roundCash(s, round))}`)}</span>`;
+      (row.popover.querySelector('[data-pop="dilution"]') as HTMLElement).textContent =
+        `−${Math.round(roundDilution(s, round) * 100)} Prozentpunkte`;
+      selfBtn.hidden = status === 'accepted' || selfDone;
+      selfBtn.disabled = s.money < round.selfUnlockPrice || status === 'locked';
+    }
+
+    switch (status) {
+      case 'accepted':
+        setButton(row.button, ICON_CHECK, 'an Bord', 'Angenommen');
+        row.button.disabled = true;
+        row.button.style.setProperty('--afford', '0');
+        row.root.classList.add('item--owned');
+        row.meta.textContent = `Hürde aktiv: ${round.hurdleText.split(':')[0]}`;
+        break;
+      case 'offered':
+        setButton(row.button, '', 'Annehmen ✍️', 'Runde annehmen');
+        row.button.disabled = false;
+        row.button.style.setProperty('--afford', '0');
+        row.meta.innerHTML =
+          `<span class="gain">${withCoinSvg(`+${fmtMoney(roundCash(s, round))}`)}</span>` +
+          ` · −${Math.round(roundDilution(s, round) * 100)} % Anteil` +
+          (selfDone ? ' · Ära bereits freigekauft' : '');
+        break;
+      case 'trackGate':
+        setButton(row.button, ICON_LOCK, 'Annehmen', 'Gesperrt');
+        row.button.disabled = true;
+        row.button.style.setProperty('--afford', '0');
+        row.meta.textContent = `🔒 Investoren wollen Track Record: ${round.minExits} Exit${round.minExits > 1 ? 's' : ''}` +
+          (selfDone ? ' · Ära bereits freigekauft' : ' — oder bootstrappen (i)');
+        break;
+      default: // locked
+        setButton(row.button, ICON_LOCK, 'Annehmen', 'Gesperrt');
+        row.button.disabled = true;
+        row.button.style.setProperty('--afford', '0');
+        row.meta.innerHTML = withCoinSvg(`ab Bewertung ${fmtMoney(round.threshold)}`);
+    }
+  }
+
+  // Exit-Zeile: Erlös-Vorschau
+  const exitVisible = s.pmfReached;
+  $('exit-row').hidden = !exitVisible;
+  if (exitVisible) {
+    $('exit-meta').innerHTML =
+      `Verkauf deines StartUps: <span class="gain">${withCoinSvg(`+${fmtMoney(exitProceeds(s))}`)}</span>` +
+      ` <small>(Anteil ${Math.round(s.founderShare * 100)} %)</small>`;
+  }
+}
+
+// ----------------------------- Exit-Overlay -----------------------------
+
+/** Rendert Term-Sheet-Phase und Perk-Shop. In beiden Phasen live aktualisiert. */
+export function renderExitOverlay(s: GameState, meta: MetaState): void {
+  // Phase 1: Term Sheet
+  const v = valuation(s);
+  $('exit-buyer').textContent = buyerFor(v);
+  $('ex-ertrag').innerHTML = withCoinSvg(fmtMoney(ertragskraft(s)));
+  $('ex-mult').textContent = fmtFactor(valuationMultiple(s));
+  $('ex-mult-detail').textContent =
+    `(Rep ${fmtFactor(repMultiple(s))} · Gründer ${fmtFactor(gruenderBonus(s))}` +
+    (trackRecordBonus(s) > 1 ? ` · Track Record ${fmtFactor(trackRecordBonus(s))})` : ')');
+  $('ex-team').innerHTML = withCoinSvg(fmtMoney(teamValue(s)));
+  $('ex-hw').innerHTML = withCoinSvg(fmtMoney(hardwareValue(s)));
+  $('ex-cash').innerHTML = withCoinSvg(fmtMoney(s.money));
+  $('ex-total').innerHTML = withCoinSvg(fmtMoney(v));
+  $('ex-share').textContent = `${Math.round(s.founderShare * 100)} %`;
+  $('ex-proceeds').innerHTML = withCoinSvg(fmtMoney(exitProceeds(s)));
+
+  // Phase 2: Perk-Shop (Buttons wurden von main.ts mit stabilen IDs angelegt)
+  $('perk-bank').innerHTML = withCoinSvg(fmtMoney(meta.bank));
+  for (const p of PERKS) {
+    const btn = document.getElementById(`perk-btn-${p.id}`) as HTMLButtonElement | null;
+    const lvlEl = document.getElementById(`perk-lvl-${p.id}`);
+    if (!btn || !lvlEl) continue; // Shop noch nicht gebaut
+    const level = meta.perks[p.id] ?? 0;
+    lvlEl.textContent = level ? `Stufe ${level}/${p.maxLevel}` : '';
+    if (perkMaxed(meta, p)) {
+      btn.innerHTML = `${ICON_CHECK}<span>max</span>`;
+      btn.disabled = true;
+      btn.style.setProperty('--afford', '0');
+    } else {
+      const price = perkPrice(meta, p.id);
+      btn.innerHTML = `<span>${withCoinSvg(fmtMoney(price))}</span>`;
+      btn.disabled = meta.bank < price;
+      setAfford(btn, meta.bank, price);
     }
   }
 }

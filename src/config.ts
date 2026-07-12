@@ -53,12 +53,24 @@ export interface HardwareDef {
   // erst sichtbar, wenn dieser Rang freigeschaltet ist — große Kapazität
   // gehört in die Ära, deren Team sie auch füllen kann
   revealAfterRankUnlock?: string;
+  // Ära-Gate: kaufbar erst, wenn diese Finanzierungsrunde angenommen (oder
+  // "aus eigener Tasche" freigekauft) wurde — siehe ROUNDS
+  requiresRound?: string;
+  // Preiswachstum pro Kauf; Default COST_GROWTH. Endgame-Stufen sind steiler,
+  // damit eine Ära einen Run trägt statt durchzurauschen (per endgame_sim.py
+  // kalibriert — mit 1,15 überall wäre das Unicorn in Run 1 erreichbar)
+  costGrowth?: number;
 }
 
 export const HARDWARE: HardwareDef[] = [
   { id: 'laptop', name: 'Laptop', icon: '💻', capacity: 1.0, basePrice: 0, upkeep: 0, startCount: 1, revealAtTotalEarned: 0 },
   { id: 'pi', name: 'Raspberry Pi', icon: '🍓', capacity: 1.0, basePrice: 15, upkeep: 0.02, startCount: 0, revealAtTotalEarned: 0 },
   { id: 'tower', name: 'Tower PC', icon: '🖥️', capacity: 8.0, basePrice: 250, upkeep: 0.2, startCount: 0, revealAtTotalEarned: 0, revealAfterRankUnlock: 'junior' },
+  { id: 'vps', name: 'VPS', icon: '☁️', capacity: 40, basePrice: 5_000, upkeep: 1.0, startCount: 0, revealAtTotalEarned: 0, requiresRound: 'seed', costGrowth: 1.2 },
+  { id: 'cluster', name: 'Cluster', icon: '🗄️', capacity: 250, basePrice: 160_000, upkeep: 6, startCount: 0, revealAtTotalEarned: 0, requiresRound: 'series-a', costGrowth: 1.22 },
+  { id: 'datacenter', name: 'Datacenter', icon: '🏭', capacity: 1_200, basePrice: 1_400_000, upkeep: 30, startCount: 0, revealAtTotalEarned: 0, requiresRound: 'series-a', costGrowth: 1.25 },
+  { id: 'cloud', name: 'Eigene Cloud', icon: '🌩️', capacity: 8_000, basePrice: 30_000_000, upkeep: 600, startCount: 0, revealAtTotalEarned: 0, requiresRound: 'series-b', costGrowth: 1.33 },
+  { id: 'orbital', name: 'Orbital Cloud', icon: '🛰️', capacity: 50_000, basePrice: 200_000_000, upkeep: 4_000, startCount: 0, revealAtTotalEarned: 0, requiresRound: 'series-c', costGrowth: 1.35 },
 ];
 
 export interface RankDef {
@@ -71,12 +83,17 @@ export interface RankDef {
   riskPoints: number; // Incident-Risikopunkte pro Kopf
   repThreshold: number; // Reputations-Gate
   unlockCost: number; // einmalige Freischaltung ("Employer Branding")
+  requiresRound?: string; // Ära-Gate wie bei Hardware (siehe ROUNDS)
+  costGrowth?: number; // steiler für Endgame-Ränge (siehe HardwareDef)
 }
 
 export const RANKS: RankDef[] = [
   { id: 'intern', name: 'Intern', icon: '🐣', output: 0.2, basePrice: 20, motivation: 0.9, riskPoints: 3, repThreshold: 0, unlockCost: 0 },
   { id: 'junior', name: 'Junior Developer', icon: '🧑‍💻', output: 1.5, basePrice: 300, motivation: 1.0, riskPoints: 1, repThreshold: 8, unlockCost: 150 },
   { id: 'senior', name: 'Senior Developer', icon: '🧙', output: 8.0, basePrice: 3000, motivation: 1.1, riskPoints: 0.3, repThreshold: 25, unlockCost: 1500 },
+  { id: 'staff', name: 'Staff Developer', icon: '🦉', output: 40, basePrice: 80_000, motivation: 1.15, riskPoints: 0.1, repThreshold: 40, unlockCost: 30_000, requiresRound: 'seed', costGrowth: 1.2 },
+  { id: 'principal', name: 'Principal Developer', icon: '🧛', output: 250, basePrice: 1_400_000, motivation: 1.2, riskPoints: 0.05, repThreshold: 60, unlockCost: 500_000, requiresRound: 'series-a', costGrowth: 1.25 },
+  { id: 'tenx', name: '10x Engineer', icon: '🦄', output: 1_500, basePrice: 15_000_000, motivation: 1.25, riskPoints: 0.02, repThreshold: 80, unlockCost: 6_000_000, requiresRound: 'series-b', costGrowth: 1.33 },
 ];
 
 export type UpgradeEffect =
@@ -164,6 +181,152 @@ export const INCIDENTS: IncidentDef[] = [
   },
 ];
 
+// ============================================================================
+// Bewertung & Meilensteine — der Weg zum Unicorn (Spec-Abschnitt gleichen
+// Namens). Alle Werte per tools/endgame_sim.py kalibriert: Run 1 exitet um
+// Series A (~65 M), Unicorn fällt im 4.–6. Run nach ~20 h Bot-Zeit.
+// ============================================================================
+
+export const UNICORN_VALUATION = 1e9;
+
+// Ertragskraft = nachhaltiger Gewinn/s × dieses Multiple.
+// "Nachhaltig" = Hochwasserstand des gleitenden 10-Minuten-Schnitts von
+// baseIncome (spike- und incident-frei) — Peak wäre durch den Spike exploitbar.
+export const VALUATION_INCOME_MULT = 2000;
+export const VALUATION_EMA_SECONDS = 600; // 10-min-Schnitt
+export const VALUATION_TEAM_MULT = 0.5; // × Rang-Basispreis pro Kopf (Acquihire-Prämie; mehr wäre Kauf-Arbitrage)
+export const VALUATION_HW_RESIDUAL = 0.5; // × gezahlte Kaufpreise (Restwert)
+export const REP_MULTIPLE_MAX_BONUS = 2; // Rep-Multiple = 1 + 2 × Rep/100 → ×1,0 … ×3,0
+export const GRUENDER_BONUS_PER_TRAINING = 0.05; // Käufer bezahlt die Schulungen (Acquihire)
+
+// Reputation wird nach oben zäh (logistisch): Rate × (1 − Rep/REP_SOFTCAP).
+// Früh kaum spürbar (Rep 8/25 wie gehabt), spät echte Arbeit — und der
+// "Bekannter Name"-Sockel bekommt langfristig Wert.
+export const REP_SOFTCAP = 105;
+export const REP_EMP_RATE_CAP = 1.5; // Angestellten-Beitrag max +1,5/min
+
+export interface RoundDef {
+  id: string;
+  name: string;
+  icon: string;
+  threshold: number; // Bewertungs-Schwelle (Hochwasserstand)
+  cash: number; // fixe Kapitalspritze (kein %-Feedback auf die Bewertung!)
+  dilution: number; // Anteils-Punkte, die der Gründer abgibt
+  minExits: number; // Track-Record-Gate: so viele frühere Exits braucht die Runde
+  selfUnlockPrice: number; // Ära-Unlock "aus eigener Tasche" (ohne Investor)
+  hurdle: 'reporting' | 'buerokratie' | 'wachstumsdruck' | 'reorg';
+  hurdleText: string; // sichtbar im Angebot
+}
+
+// Hürden (wirken NUR auf Betriebskosten/Incidents/Motivation, nie auf den min()-Kern):
+// - reporting: +15 % Incident-Wahrscheinlichkeit, neuer leichter Incident "Board Meeting"
+// - buerokratie: +10 % Betriebskosten
+// - wachstumsdruck: unter Reputation REP_EXPECTATION sinkt die Motivation
+// - reorg: +10 % Betriebskosten UND neuer schwerer Incident "Reorg"
+export const ROUNDS: RoundDef[] = [
+  {
+    id: 'seed', name: 'Seed', icon: '🌱', threshold: 1e6, cash: 150_000, dilution: 0.10,
+    minExits: 0, selfUnlockPrice: 400_000, hurdle: 'reporting',
+    hurdleText: 'Investoren-Reporting: +15 % Incident-Risiko, neuer Incident „Board Meeting“',
+  },
+  {
+    id: 'series-a', name: 'Series A', icon: '📈', threshold: 1e7, cash: 1_500_000, dilution: 0.15,
+    minExits: 0, selfUnlockPrice: 4_000_000, hurdle: 'buerokratie',
+    hurdleText: 'Bürokratie: +10 % Betriebskosten',
+  },
+  {
+    id: 'series-b', name: 'Series B', icon: '🏦', threshold: 75e6, cash: 10_000_000, dilution: 0.15,
+    minExits: 1, selfUnlockPrice: 30_000_000, hurdle: 'wachstumsdruck',
+    hurdleText: 'Wachstumsdruck: unter Reputation 50 sinkt die Motivation stark',
+  },
+  {
+    id: 'series-c', name: 'Series C', icon: '🏰', threshold: 300e6, cash: 40_000_000, dilution: 0.15,
+    minExits: 2, selfUnlockPrice: 120_000_000, hurdle: 'reorg',
+    hurdleText: 'Effizienz-Programme: +10 % Betriebskosten, neuer Incident „Reorg“',
+  },
+];
+
+export const REPORTING_INCIDENT_MULT = 1.15; // Seed-Hürde
+export const BUEROKRATIE_UPKEEP_MULT = 1.1; // Series A / C
+export const REP_EXPECTATION = 50; // Series-B-Hürde: Erwartung der Investoren
+export const WACHSTUMSDRUCK_MOT_MALUS = 0.15;
+export const BOOTSTRAP_MOT_BONUS = 0.05; // solange kein Investor an Bord ("Wir gehören uns selbst")
+export const INVESTOR_INCIDENT_TITLES: Record<string, { light: string[]; heavy: string[] }> = {
+  seed: { light: ['Board Meeting'], heavy: [] },
+  'series-c': { light: [], heavy: ['Reorg'] },
+};
+
+// Der Meilenstein "Produkt-Markt-Fit" feuert bei der Senior-Freischaltung und
+// schaltet den viralen Spike + die Bewertungs-Anzeige frei.
+export const PMF_RANK = 'senior';
+
+// ============================================================================
+// Der Exit — Prestige. Erlös = Bewertung × Gründer-Anteil, fließt in Perks.
+// ============================================================================
+
+export type PerkEffect =
+  | { type: 'incomeMult'; multPerLevel: number } // multiplikativ: mult^Stufe
+  | { type: 'valuationMult'; bonusPerLevel: number } // Multiple +x pro Stufe
+  | { type: 'fundingTerms'; cashMultPerLevel: number; dilutionReliefPerLevel: number }
+  | { type: 'startMoney'; base: number; factorPerLevel: number } // base × factor^(Stufe−1)
+  | { type: 'startRep'; perLevel: number; max: number }
+  | { type: 'hireDiscount'; multPerLevel: number }; // mult^Stufe auf Hires + Freischaltungen
+
+export interface PerkDef {
+  id: string;
+  name: string;
+  icon: string;
+  basePrice: number;
+  priceGrowth: number; // Preisfaktor pro Stufe
+  maxLevel: number;
+  kind: 'decke' | 'tempo'; // Decken-Heber vs. Beschleuniger (UI-Gruppierung)
+  desc: string;
+  effect: PerkEffect;
+}
+
+export const PERKS: PerkDef[] = [
+  {
+    id: 'netzwerk', name: 'Netzwerk', icon: '🕸️', basePrice: 15e6, priceGrowth: 3, maxLevel: 8, kind: 'decke',
+    desc: 'Man kennt dich. Deals kommen leichter rein — dauerhaft mehr Gewinn.',
+    effect: { type: 'incomeMult', multPerLevel: 1.25 },
+  },
+  {
+    id: 'track-record', name: 'Track Record', icon: '🏆', basePrice: 10e6, priceGrowth: 3, maxLevel: 8, kind: 'decke',
+    desc: 'Investoren zahlen für deine Historie — höheres Bewertungs-Multiple.',
+    effect: { type: 'valuationMult', bonusPerLevel: 0.2 },
+  },
+  {
+    id: 'investoren-standing', name: 'Investoren-Standing', icon: '🤵', basePrice: 8e6, priceGrowth: 3, maxLevel: 5, kind: 'decke',
+    desc: 'Bessere Term Sheets: mehr Cash pro Runde, weniger Anteilsabgabe.',
+    effect: { type: 'fundingTerms', cashMultPerLevel: 0.5, dilutionReliefPerLevel: 0.02 },
+  },
+  {
+    id: 'angel', name: 'Angel-Kapital', icon: '👼', basePrice: 2e6, priceGrowth: 3, maxLevel: 5, kind: 'tempo',
+    desc: 'Ein Angel glaubt an dich — Startgeld für die nächste Gründung.',
+    effect: { type: 'startMoney', base: 2_000, factorPerLevel: 8 },
+  },
+  {
+    id: 'name', name: 'Bekannter Name', icon: '📰', basePrice: 3e6, priceGrowth: 3, maxLevel: 5, kind: 'tempo',
+    desc: 'Die Presse kennt dich — das neue StartUp startet mit Reputations-Sockel.',
+    effect: { type: 'startRep', perLevel: 12, max: 60 },
+  },
+  {
+    id: 'kollegen', name: 'Alte Kollegen', icon: '🫂', basePrice: 4e6, priceGrowth: 3, maxLevel: 5, kind: 'tempo',
+    desc: 'Dein altes Team folgt dir — Einstellungen und Freischaltungen günstiger.',
+    effect: { type: 'hireDiscount', multPerLevel: 0.9 },
+  },
+];
+
+// Käufer-Flavor im Exit-Screen, nach Bewertung aufsteigend
+export const BUYERS: { minValuation: number; name: string }[] = [
+  { minValuation: 0, name: 'Eine lokale Werbeagentur' },
+  { minValuation: 5e6, name: 'Ein süddeutscher Mittelständler' },
+  { minValuation: 50e6, name: 'Ein Private-Equity-Fonds' },
+  { minValuation: 250e6, name: 'Big-Tech-Acquihire (wird sechs Monate später eingestampft)' },
+  { minValuation: 1e9, name: 'IPO — Wall Street klingelt' },
+];
+
 // Save
 export const SAVE_KEY = 'it-idle-clicker-v3';
+export const META_SAVE_KEY = 'it-idle-clicker-v3-meta'; // Exit-Perks & Statistik (überlebt Runs)
 export const AUTOSAVE_INTERVAL = 10; // s

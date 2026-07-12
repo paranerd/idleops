@@ -10,6 +10,8 @@ Designziel: **möglichst simpel** – bewusst ohne Kaskade und Zweitressource; P
 
 Der Spieler ist Gründer eines StartUps. Er hat zunächst nur sich und einen Laptop und verdient Geld mit Freelance-Aufträgen (Klick-Mechanik). Das StartUp hat zu Beginn keine Reputation. Diese wird nach und nach aufgebaut, kann aber durch Incidents auch wieder abgebaut werden.
 
+Das Fernziel des Spiels ist die **Unicorn-Bewertung: 1 Mrd Unternehmenswert**. Sie ist bewusst nicht in einem einzigen Durchlauf erreichbar, sondern über mehrere Gründungen hinweg (siehe „Bewertung & Meilensteine: der Weg zum Unicorn“ und „Der Exit“ unter „Später“).
+
 ## Kernloop
 
 ```
@@ -284,7 +286,7 @@ Dasselbe gilt spiegelbildlich für Angestellte: Der Roh-Output eines Rangs (z. B
 - Weitere Hardware-Stufen (bis Orbital Cloud) und Ränge (bis 10x Engineer)
 - Temporäre Perks
 - Mehr Incident-Typen, Ton-Eskalation, Katastrophen-Event
-- **Finanzierungsrunden** (Seed, Series A/B/C) als Mid-Game-Entscheidung: Kapitalspritze jetzt gegen dauerhaften Malus (Investoren-Druck → höheres Incident-Risiko oder höhere Reputations-Erwartungen). Keine Reset-Mechanik – ergänzt den Exit, konkurriert nicht mit ihm.
+- **Bewertung & Meilensteine: der Weg zum Unicorn** (siehe unten) – Unternehmens-Bewertung als Langzeit-Fortschrittsanzeige, Finanzierungsrunden (Seed, Series A/B/C) als Meilenstein-Angebote mit Cash, Unlock und Hürde. Keine Reset-Mechanik – ergänzt den Exit, konkurriert nicht mit ihm.
 - Satirisches Endgame (der Spieler wird selbst Cloud-Provider)
 - **Org-Kaskade** als Option, falls sich das Mid-Game flach anfühlt (siehe unten)
 - Prestige-System **„Der Exit"** (siehe unten)
@@ -317,20 +319,114 @@ Weitere Punkte:
 - **Eigener Twist ab Director** (v2-Regel: späte Stufen brauchen eigene Mechanik, sonst nur größere Zahlen): z. B. Director schaltet Budget-Verhandlungen frei, VP senkt Betriebskosten durch „Vendor-Deals".
 - **Preis**: BigInt/break_infinity und polynomieller Offline-Progress kommen zurück, Balancing wird deutlich härter. Deshalb: erst einbauen, wenn der MVP gespielt wurde und das Mid-Game es wirklich braucht.
 
+### Bewertung & Meilensteine: der Weg zum Unicorn
+
+*(Umgesetzt 12.07.2026: config.ts/state.ts/engine.ts/tick.ts/events.ts/save.ts/main.ts/render.ts, Tests in `valuation.test.ts`, Balancing in `tools/endgame_sim.py`. Kalibrierung mit paranerd entschieden; Zahlen ab Run 1 per Sim gegengerechnet.)*
+
+Kalibrierung (entschieden):
+
+- Gesamtspielzeit bis zum Unicorn: **~25–40 h** für einen aktiven Spieler, über **4–6 Exit-Runs** – jeder Run erreicht grob das 2,5–3-Fache der Bewertungs-Decke des vorherigen
+- Die Bewertung ist **live sichtbar ab dem Meilenstein Produkt-Markt-Fit** (progressive disclosure): klein im Header neben Gewinn/s, mit Fortschritt zur nächsten Sprosse („Bewertung 2,3 M · Series A ab 10 M“)
+- **Meilenstein-Mix**: Erzähl-Meilensteine feuern automatisch (Feier + Unlock), Finanzierungsrunden sind echte Angebote (annehmen = Cash + Hürde, ablehnen bleibt spielbar)
+
+**Leitidee**: Die Funding-Leiter ist gleichzeitig Meilenstein-Kette, Fortschrittsmaß pro Run und die harte Grenze gegen das „Unicorn in einem Rutsch“. Die späten Hardware-**und Rang**-Ären sind hinter Finanzierungsrunden gegated, die Bewertungs-Schwellen wachsen pro Sprosse um ×7–10, und die Endgame-Käufe haben ein **steileres Preiswachstum** (×1,20–1,35 statt ×1,15), sodass eine Ära einen Run trägt statt durchzurauschen. Run 1 endet dadurch von selbst um Series A; jeder weitere Run schafft mit Exit-Perks ungefähr eine Sprosse mehr. Es braucht **keine künstliche Bremse** (kein sqrt/log auf der Bewertung – intransparent, widerspricht dem Vorrechnen-Prinzip) und **keine harten Caps** auf Angestellte oder Hardware (fühlen sich in Idle-Games gemein an). Reputation wird stattdessen **logistisch** zäh (Rate × (1 − Rep/105)) – früh unverändert, spät echte Arbeit, und der Namens-Perk-Sockel bekommt so langfristig Wert.
+
+#### Die Bewertung (Term Sheet)
+
+```
+Bewertung = Ertragskraft × Multiple + Team-Wert + Hardware-Wert + Cash
+
+Ertragskraft  = nachhaltiger Gewinn/s × 2.000     ← 10-Minuten-Schnitt (Hochwasserstand), NICHT Peak
+Team-Wert     = Σ pro Kopf: 0,5 × Rang-Basispreis ← Acquihire-Prämie
+Hardware-Wert = Σ gezahlte Kaufpreise × 0,5       ← Restwert (geometrische Summe)
+Cash          = Kontostand × 1
+
+Multiple      = Rep-Multiple × Gründer-Bonus × Track-Record   ← wirkt NUR auf die Ertragskraft
+Rep-Multiple  = 1 + 2 × Rep/100                   ← ×1,0 … ×3,0 (Cap durch Rep-Skala)
+Gründer-Bonus = 1 + 0,05 × gekaufte Schulungen    ← max ×1,30
+Track-Record  = 1 + 0,2 × Perk-Stufe              ← Exit-Perk (siehe „Der Exit“)
+```
+
+Regeln:
+
+- **Das Multiple wirkt nur auf die Ertragskraft**, nicht auf Team/Hardware/Cash (Design-Korrektur bei der Umsetzung): Assets sind Assets. Multiplizierte man die Summe, würde Funding-Cash sich selbst multiplizieren – ein Feedback-Loop, der die Kurve sprengt (in der Sim führte er zum Unicorn in Run 1).
+- **Nachhaltiger Gewinn/s statt Peak**: Hochwasserstand des gleitenden 10-Minuten-Schnitts von `baseIncome` (spike- **und** incident-frei). Ein Peak-Wert wäre durch den viralen Spike (×20 für 60 s) exploitbar; der Schnitt ist spike-fest und belohnt stabilen Betrieb.
+- **Team-Prämie 0,5× statt 2×** (Korrektur): Bei 2× wäre ein teurer Rang als reiner Bewertungs-Boost kaufbar (Arbitrage). 0,5× spiegelt den Hardware-Restwert und bleibt ehrlich.
+- **Cash zählt 1:1** – aber Ausgeben schlägt Horten immer: 1 € in einen Hire investiert bringt Team-Wert *plus* Ertragskraft-Zuwachs ×2.000 ×Multiple. Es gibt kein „vor dem Exit auf Geld sitzen“.
+- **Der Gründer-Bonus löst das Schulungs-Spannungsfeld**: Schulungen bleiben In-Run und gehen beim Exit verloren – aber der Käufer *bezahlt* für sie (ein Acquihire kauft genau die Skills des Gründers).
+- **Meilensteine triggern auf den Hochwasserstand** der Bewertung (ein Reputations-Einbruch zieht ein Angebot nicht zurück); der Exit zahlt den *aktuellen* Wert.
+- 1 Mrd = 10⁹ passt in `number` – **weiterhin kein BigInt**.
+- Alle Konstanten (Ertrags-Multiple, Schwellen, Perk-Preise) leben in `config.ts`.
+
+#### Meilensteine
+
+**Erzähl-Meilensteine** (automatisch, Feier + Unlock, keine Hürde):
+
+1. **„Das letzte Ticket“** – existiert bereits (Klick Phase 1 → 2)
+2. **„Produkt-Markt-Fit“** – bei der Senior-Freischaltung: schaltet den viralen Spike und die Bewertungs-Anzeige frei („Investoren werden aufmerksam“)
+
+**Finanzierungsrunden** (Angebote an Bewertungs-Schwellen; Ära gated **Hardware und Ränge**):
+
+| Runde | Schwelle | Cash | Anteil | Track Record | Ära-Unlock | Hürde |
+|---|---|---|---|---|---|---|
+| Seed | 1 M | +150 k | −10 % | – | VPS · Staff | „Investoren-Reporting“: +15 % Incident-Risiko, neuer leichter Incident *Board Meeting* |
+| Series A | 10 M | +1,5 M | −15 % | – | Cluster · Datacenter · Principal | Bürokratie: +10 % Betriebskosten |
+| Series B | 75 M | +10 M | −15 % | 1 Exit | Cloud · 10x Engineer | Wachstumsdruck: unter Reputation 50 sinkt die Motivation (−0,15) |
+| Series C | 300 M | +40 M | −15 % | 2 Exits | Orbital Cloud | *Reorg* (schwerer Incident) + nochmals +10 % Betriebskosten |
+| **Unicorn** | **1 Mrd** | – | – | – | Feier, 🦄, IPO als bester Käufer | – |
+
+Cash ist eine **feste Summe**, nicht „% der Bewertung“ (Umsetzungs-Korrektur): ein Prozentsatz der Bewertung wäre der gleiche Feedback-Loop wie beim Multiple. Das Investoren-Standing-Perk hebt den Cash und mildert die Dilution.
+
+Vier Regeln:
+
+1. **Hürden fassen nur Betriebskosten, Incidents und Motivation an** – nie den min()-Kern.
+2. **Track-Record-Gate**: Series B/C bieten Investoren erst ab 1 bzw. 2 früheren Exits an – die Leiter erzwingt so mehrere Runs, ohne harten Cap. Die Ära bleibt trotzdem per „aus eigener Tasche“ erreichbar.
+3. **Ablehnen ist echt spielbar**: Das Angebot bleibt liegen; der Ära-Unlock ist alternativ „aus eigener Tasche“ kaufbar (Seed 400 k, A 4 M, B 30 M, C 120 M – rund das 3–4-Fache des Rundencashs). Solange kein Investor an Bord ist, aber das erste Angebot vorliegt: Bootstrap-Bonus (+0,05 Motivation, „Wir gehören uns selbst“).
+4. **Schwellen triggern auf den Hochwasserstand** (siehe oben).
+
+#### Zielkurve (per `tools/endgame_sim.py` gegengerechnet)
+
+Der Sim-Bot spielt gierig-optimal (jeder Cooldown genutzt, bester €/€-Kauf); ein Mensch ist langsamer, die Bot-Stunden sind also eine **Untergrenze**. Gemessener Lauf mit den finalen Werten:
+
+| Run | Exit bei ca. | Erreichte Sprosse | Bot-Dauer |
+|---|---|---|---|
+| 1 | ~66 M | Series A | ~4,7 h |
+| 2 | ~100 M | Series B | ~2,8 h |
+| 3 | ~620 M | Series C | ~5,7 h |
+| 4 | ~960 M | Series C | ~4,3 h |
+| 5 | ≥ 1 Mrd 🦄 | Unicorn | ~2,2 h |
+
+→ **Unicorn im 5. Run nach ~20 h Bot-Zeit** (menschlich in der 25–40-h-Zielspanne). Das Seed-Angebot fällt in Session 1 nach ~35 min. Bei jeder Balancing-Änderung an den späten Rängen/Hardware/Perks: `endgame_sim.py` erneut laufen lassen.
+
+#### Umgesetzt vs. noch offen
+
+Umgesetzt (12.07.2026): Bewertung, alle Ära-Gates, Finanzierungsrunden inkl. Hürden + Bootstrap, **Dilution** (Anteil sichtbar im Term Sheet, Erlös = Bewertung × Anteil – mit paranerd entschieden einzubauen), Exit-Screen, Perk-Shop, Meta-Save. Late-Game-Content: Staff/Principal/10x + VPS/Cluster/Datacenter/Cloud/Orbital.
+
+Offen / zum Feintunen im Playtest: exakte Perk-Preise und Hürden-Stärke (erste per Sim gesetzte Werte); ob der Bootstrap-Weg attraktiv genug ist; ob die Dilution-Zahl im Term Sheet gut lesbar ist.
+
 ### Prestige-System: „Der Exit"
 
 Reset mit permanenten Boni, erzählerisch als Unternehmensverkauf: Der Spieler verkauft sein StartUp und gründet ein neues – erfahrener, vernetzter, mit Kapital.
 
-- **Exit-Wert** = Peak-Gewinn/s des Runs × **Reputations-Multiple**. Reputation bekommt damit einen zweiten, langfristigen Job: Sie bestimmt den Verkaufspreis. Ein Data Breach kurz vor dem Exit tut richtig weh.
-- **Käufer skaliert mit der Unternehmensgröße** (Flavor): lokale Werbeagentur → Mittelständler → Big-Tech-Acquihire („wird sechs Monate später eingestampft") → IPO.
-- **Erlös wird in wählbare Gründer-Perks investiert** (jeder Reset ist eine Entscheidung, kein flacher Multiplikator):
-  - **Netzwerk** – dauerhafter Gewinn-Multiplikator
-  - **Bekannter Name** – neues StartUp startet mit Sockel-Reputation
-  - **Alte Kollegen** – Ränge schalten früher frei / Einstellungen billiger
-  - **Gelernte Lektionen** – niedrigeres Incident-Risiko
-  - **Angel-Kapital** – Startgeld im neuen Run
+- **Exit-Wert = die aktuelle Bewertung** (Formel siehe „Bewertung & Meilensteine“; ersetzt den früheren Stand „Peak-Gewinn/s × Reputations-Multiple“ – der wäre durch den viralen Spike exploitbar, und der Kontostand verfällt nicht mehr, sondern zählt 1:1). Der Exit-Screen *ist* das Term Sheet: alle Posten als exakte Rohwerte sichtbar (bewusste Analogie zu den Schulungen). Reputation behält ihren zweiten, langfristigen Job über das Rep-Multiple: Ein Data Breach kurz vor dem Exit tut richtig weh.
+- **Käufer skaliert mit der Unternehmensgröße** (Flavor): lokale Werbeagentur → Mittelständler → Big-Tech-Acquihire („wird sechs Monate später eingestampft“) → nach dem Unicorn-Meilenstein: IPO mit bestem Multiple.
+- **Der Exit-Screen ist ein Zwei-Phasen-Overlay**: Phase 1 zeigt das Term Sheet (alle Posten als exakte Rohwerte, dann × Dein Anteil = Erlös); nach „Verkaufen“ Phase 2 der Perk-Shop, danach „Neu gründen“ startet den Run mit den gekauften Perks. Der Run-Save und der Meta-Save (Perks, Bank, Exit-Zähler, Best-Bewertung) liegen in **getrennten localStorage-Keys** – der Run-Key ist unverändert (Kompatibilität mit bestehenden Spielständen).
+- **Erlös wird in wählbare Gründer-Perks investiert** (jeder Reset ist eine Entscheidung, kein flacher Multiplikator). Zwei Klassen – ohne Decken-Heber kein Unicorn (finale Werte, per Sim kalibriert; Preis ×3 pro Stufe):
 
-Jeder Perk verstärkt eine andere Mechanik des Grundspiels. Der Exit wird erst gebaut, wenn das Grundspiel durchgespielt und balanced ist – er tunt die Endphase, die muss erst existieren.
+| Perk | Klasse | Basispreis · max | Effekt pro Stufe |
+|---|---|---|---|
+| **Netzwerk** | Decken-Heber | 15 M · 8 | ×1,25 Gewinn (multiplikativ) |
+| **Track Record** | Decken-Heber | 10 M · 8 | +0,2 aufs Bewertungs-Multiple |
+| **Investoren-Standing** | Decken-Heber | 8 M · 5 | +50 % Runden-Cash, −2 Punkte Dilution |
+| **Angel-Kapital** | Beschleuniger | 2 M · 5 | Startgeld 2 k × 8^(Stufe−1) im neuen Run |
+| **Bekannter Name** | Beschleuniger | 3 M · 5 | +12 Start-Reputation (max 60) |
+| **Alte Kollegen** | Beschleuniger | 4 M · 5 | ×0,9 auf Einstellungen + Freischaltungen |
+
+„Gelernte Lektionen“ (−Incident-Risiko) aus dem Entwurf ist vorerst nicht drin – die drei Decken-Heber decken den Plateau-Hub ab; nachrüstbar, falls im Playtest ein vierter Decken-Heber fehlt.
+
+- **Balancing-Regel**: Decken-Heber multiplizieren das erreichbare Plateau eines Runs, Beschleuniger machen Runs nur kürzer. Perk-Preise geometrisch (×3 pro Stufe), Budget = Exit-Erlös – da die Erlöse selbst geometrisch wachsen, kauft jeder Run ~1–2 neue Stufen pro Schiene.
+
+Jeder Perk verstärkt eine andere Mechanik des Grundspiels.
 
 ## Technische Umsetzung
 

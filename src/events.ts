@@ -8,6 +8,7 @@ import {
   INCIDENT_LIGHT_WEIGHT,
   INCIDENT_PROB_CAP_PER_MIN,
   INCIDENT_PROB_PER_RISKPOINT_PER_MIN,
+  INVESTOR_INCIDENT_TITLES,
   SPIKE_DURATION,
   SPIKE_HUG_REP_LOSS,
   SPIKE_MIN_INCOME,
@@ -35,6 +36,16 @@ export function incidentProbPerSec(s: GameState): number {
   return perMin / 60;
 }
 
+/** Incident-Titel inkl. Investoren-Incidents der angenommenen Runden. */
+export function incidentTitles(s: GameState, severity: 'light' | 'heavy'): string[] {
+  const def = INCIDENTS[severity === 'heavy' ? 1 : 0];
+  const titles = [...def.titles];
+  for (const [roundId, extra] of Object.entries(INVESTOR_INCIDENT_TITLES)) {
+    if (s.rounds.includes(roundId)) titles.push(...extra[severity]);
+  }
+  return titles;
+}
+
 /** Würfelt Incident-Spawn; gibt Events zur Anzeige zurück. */
 export function rollIncident(s: GameState, dt: number, rng: () => number): GameEvent[] {
   if (s.incident) return [];
@@ -43,7 +54,8 @@ export function rollIncident(s: GameState, dt: number, rng: () => number): GameE
   const heavy = rng() < 1 / (INCIDENT_LIGHT_WEIGHT + 1);
   const defIndex = heavy ? 1 : 0;
   const def = INCIDENTS[defIndex];
-  const title = def.titles[Math.floor(rng() * def.titles.length)];
+  const titles = incidentTitles(s, def.severity);
+  const title = titles[Math.floor(rng() * titles.length)];
   const auto = def.severity === 'light' && hasAutoFixLight(s);
   s.incident = {
     defIndex,
@@ -78,8 +90,12 @@ export function clickFixIncident(s: GameState): GameEvent[] {
   return [{ kind: 'incidentFixed', title }];
 }
 
-/** Würfelt den viralen Spike (nicht während eines Incidents). */
+/**
+ * Würfelt den viralen Spike (nicht während eines Incidents).
+ * Erst ab Produkt-Markt-Fit — vorher wird niemand viral.
+ */
 export function rollSpike(s: GameState, dt: number, rng: () => number): GameEvent[] {
+  if (!s.pmfReached) return [];
   if (s.spikeRemaining > 0 || s.incident) return [];
   if (baseIncome(s) < SPIKE_MIN_INCOME) return [];
   if (rng() >= SPIKE_PROB_PER_SEC * dt) return [];
