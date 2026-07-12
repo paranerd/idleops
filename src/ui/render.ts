@@ -25,7 +25,6 @@ import {
   buyHardware,
   buyTraining,
   buyUpgrade,
-  buyerFor,
   capacity,
   dealCooldown,
   dealMult,
@@ -64,7 +63,7 @@ import {
 } from '../engine';
 import { clickFixIncident } from '../events';
 import type { GameState, MetaState } from '../state';
-import { fmtMoney, fmtRate, withCoinSvg } from './format';
+import { fmtMoney, fmtRate, ratingLabel, withCoinSvg } from './format';
 
 const $ = <T extends HTMLElement>(id: string): T => document.getElementById(id) as T;
 
@@ -109,7 +108,15 @@ const hwRows = new Map<string, Row>();
 const rankRows = new Map<string, Row>();
 const upgradeRows = new Map<string, Row>();
 const trainingRows = new Map<string, Row>();
-const fundingRows = new Map<string, Row>();
+
+interface FundRow {
+  root: HTMLElement;
+  accept: HTMLButtonElement;
+  self: HTMLButtonElement;
+  status: HTMLElement;
+  meta: HTMLElement;
+}
+const fundingRows = new Map<string, FundRow>();
 
 // ----------------------------- Item-Popovers -----------------------------
 // Alle Detail-Infos einer Zeile leben hinter dem (i)-Button — die Zeile
@@ -269,39 +276,45 @@ export function buildUI(s: GameState, onAction: () => void): void {
     trainingRows.set(t.id, row);
   }
 
-  // Finanzierungsrunden — Angebote mit Cash, Anteilsabgabe und Hürde.
-  // Der Bootstrap-Weg ("aus eigener Tasche") lebt im (i)-Popover der Zeile.
+  // Finanzierungsrunden — kompakte Zeilen INNERHALB des Bewertungs-Popovers
+  // (kein verschachteltes Item-Popover). Jede Zeile: Titel, Status/Meta, und
+  // je nach Zustand ein "Annehmen"- und ein "aus eigener Tasche"-Button.
   const funding = $('funding-list');
   for (const round of ROUNDS) {
-    const unlocks = [
-      ...RANKS.filter((r) => r.requiresRound === round.id).map((r) => `${r.icon} ${r.name}`),
-      ...HARDWARE.filter((h) => h.requiresRound === round.id).map((h) => `${h.icon} ${h.name}`),
-    ].join(', ');
-    const row = makeRow(
-      funding,
-      round.icon,
-      round.name,
-      `<div class="breakdown">
-        ${popRow('Kapitalspritze', '', 'cash')}
-        ${popRow('Anteilsabgabe', '', 'dilution')}
-        ${popRow('Schaltet frei', unlocks)}
+    const root = document.createElement('div');
+    root.className = 'fund-item';
+    root.innerHTML = `
+      <div class="fund-item__head">
+        <span class="fund-item__title">${round.icon} ${round.name}</span>
+        <span class="fund-item__status" data-f="status"></span>
       </div>
-      <p class="popover__tip">Hürde: ${round.hurdleText}</p>
-      <p>Oder bootstrappen: Ära ohne Investor freikaufen — teuer, aber du behältst Anteile und ersparst dir die Hürde.</p>
-      <button class="btn btn--buy btn--self-unlock" data-round="${round.id}"></button>`,
-    );
-    row.button.addEventListener('click', () => {
+      <div class="fund-item__meta" data-f="meta"></div>`;
+    const actions = document.createElement('div');
+    actions.className = 'fund-item__actions';
+    const acceptBtn = document.createElement('button');
+    acceptBtn.className = 'btn btn--buy btn--sm';
+    acceptBtn.addEventListener('click', (e) => {
+      e.stopPropagation();
       acceptRound(s, round.id);
       onAction();
     });
-    const selfBtn = row.popover.querySelector('.btn--self-unlock') as HTMLButtonElement;
-    selfBtn.innerHTML = `${withCoinSvg(fmtMoney(round.selfUnlockPrice))} · aus eigener Tasche`;
+    const selfBtn = document.createElement('button');
+    selfBtn.className = 'btn btn--ghost btn--sm';
     selfBtn.addEventListener('click', (e) => {
       e.stopPropagation();
       selfUnlockRound(s, round.id);
       onAction();
     });
-    fundingRows.set(round.id, row);
+    actions.append(acceptBtn, selfBtn);
+    root.appendChild(actions);
+    funding.appendChild(root);
+    fundingRows.set(round.id, {
+      root,
+      accept: acceptBtn,
+      self: selfBtn,
+      status: root.querySelector('[data-f="status"]') as HTMLElement,
+      meta: root.querySelector('[data-f="meta"]') as HTMLElement,
+    });
   }
 
   $<HTMLButtonElement>('event-fix').addEventListener('click', () => {
@@ -392,9 +405,12 @@ export function render(s: GameState): void {
 
   $('money').innerHTML = withCoinSvg(fmtMoney(s.money));
   $('income').innerHTML = `<span class="gain">${withCoinSvg(`+${fmtRate(inc)}`)}</span>`;
-  $('rep-value').textContent = String(Math.floor(s.rep));
-  $('rep-fill').style.width = `${Math.min(100, s.rep)}%`;
+  // Reputation als Kredit-Rating im Header (Zahl + Bar + Rate im Popover)
+  $('rep-rating').textContent = ratingLabel(s.rep);
   if (!$('rep-popover').hidden) {
+    $('rep-value').textContent = String(Math.floor(s.rep));
+    $('rep-rating-pop').textContent = ratingLabel(s.rep);
+    $('rep-fill').style.width = `${Math.min(100, s.rep)}%`;
     $('rep-rate').textContent = `+${repPerMinute(s).toLocaleString('de-DE', { maximumFractionDigits: 2 })}/min`;
   }
 
@@ -477,26 +493,33 @@ export function render(s: GameState): void {
     }
   }
 
-  // Team — Ränge mit Ära-Gate erscheinen erst, wenn die Runde offen ist
+  // Team — Ränge mit Ära-Gate erscheinen erst, wenn die Runde offen ist.
+  // Der jeweils NÄCHSTE noch nicht freigeschaltete Rang ist immer sichtbar
+  // (mit Unlock-Bedingung), damit man weiß, worauf man hinarbeitet.
+  const nextLockedRank = RANKS.find((r) => !s.unlockedRanks[r.id]);
   for (const r of RANKS) {
     const row = rankRows.get(r.id)!;
-    const visible = reveal(
-      s,
-      `rank:${r.id}`,
-      s.rep >= r.repThreshold * 0.5 && roundUnlocked(s, r.requiresRound),
-    );
+    const isNextGoal = r.id === nextLockedRank?.id;
+    const visible =
+      isNextGoal ||
+      reveal(s, `rank:${r.id}`, s.rep >= r.repThreshold * 0.5 && roundUnlocked(s, r.requiresRound));
     row.root.hidden = !visible;
     if (!visible) continue;
     row.count.textContent = s.emp[r.id] ? `× ${s.emp[r.id]}` : '';
     if (!s.unlockedRanks[r.id]) {
+      const roundOk = roundUnlocked(s, r.requiresRound);
       const repOk = s.rep >= r.repThreshold;
       const price = unlockPrice(s, r.id);
       setButton(row.button, ICON_LOCK, fmtMoney(price), 'Freischalten');
-      row.button.disabled = !repOk || s.money < price;
-      setAfford(row.button, repOk ? s.money : 0, price);
-      row.meta.textContent = repOk
-        ? 'Freischalten: Employer Branding'
-        : `🔒 ab Reputation ${r.repThreshold}`;
+      row.button.disabled = !roundOk || !repOk || s.money < price;
+      setAfford(row.button, roundOk && repOk ? s.money : 0, price);
+      // Unlock-Bedingung(en) sichtbar: fehlende Finanzierungsrunde und/oder Rating
+      const conds: string[] = [];
+      if (!roundOk) conds.push(`💼 ${roundName(r.requiresRound)}`);
+      if (!repOk) conds.push(`Rating ${ratingLabel(r.repThreshold)}`);
+      row.meta.textContent = conds.length
+        ? `🔒 ab ${conds.join(' + ')}`
+        : 'Freischalten: Employer Branding';
     } else {
       const price = hirePrice(s, r.id);
       const blocked = s.rep < r.repThreshold;
@@ -530,21 +553,40 @@ export function render(s: GameState): void {
     }
   }
 
-  // Hardware — kombinierte Wertanzeige (min()-UI-Regel aus der Spec!)
-  for (const h of HARDWARE) {
-    if (h.basePrice === 0) continue;
+  // Hardware — kombinierte Wertanzeige (min()-UI-Regel aus der Spec!).
+  // Die nächste hinter einer Finanzierungsrunde gesperrte Stufe ist immer
+  // sichtbar (mit Unlock-Bedingung), damit man das Ziel kennt.
+  const buyableHw = HARDWARE.filter((h) => h.basePrice > 0);
+  // Gesperrte Ären erst ab Produkt-Markt-Fit als Ziel zeigen (vorher würde die
+  // erste Runden-gesperrte Stufe schon in Minute 1 „ab Seed" anzeigen).
+  const nextLockedHw = s.pmfReached
+    ? buyableHw.find((h) => !roundUnlocked(s, h.requiresRound))
+    : undefined;
+  for (const h of buyableHw) {
     const row = hwRows.get(h.id)!;
-    const visible = reveal(
-      s,
-      `hw:${h.id}`,
-      s.stats.totalEarned >= h.revealAtTotalEarned &&
-        (!h.revealAfterRankUnlock || !!s.unlockedRanks[h.revealAfterRankUnlock]) &&
-        roundUnlocked(s, h.requiresRound),
-    );
+    const roundOk = roundUnlocked(s, h.requiresRound);
+    const isNextGoal = h.id === nextLockedHw?.id;
+    const visible =
+      isNextGoal ||
+      reveal(
+        s,
+        `hw:${h.id}`,
+        s.stats.totalEarned >= h.revealAtTotalEarned &&
+          (!h.revealAfterRankUnlock || !!s.unlockedRanks[h.revealAfterRankUnlock]) &&
+          roundOk,
+      );
     row.root.hidden = !visible;
     if (!visible) continue;
-    const price = hardwarePrice(s, h.id);
     row.count.textContent = s.hw[h.id] ? `× ${s.hw[h.id]}` : '';
+    if (!roundOk) {
+      // Hinter einer Finanzierungsrunde gesperrt — Ziel anzeigen, Kauf gesperrt
+      setButton(row.button, ICON_LOCK, fmtMoney(h.basePrice), 'Gesperrt');
+      row.button.disabled = true;
+      row.button.style.setProperty('--afford', '0');
+      row.meta.innerHTML = withCoinSvg(`🔒 ab 💼 ${roundName(h.requiresRound)} · +${fmtRate(h.capacity)} Kapazität`);
+      continue;
+    }
+    const price = hardwarePrice(s, h.id);
     setButton(row.button, '', fmtMoney(price), 'Kaufen');
     row.button.disabled = s.money < price;
     setAfford(row.button, s.money, price);
@@ -599,9 +641,8 @@ export function render(s: GameState): void {
     }
   }
 
-  // Bewertung & Finanzierung — sichtbar ab Produkt-Markt-Fit
+  // Bewertung, Finanzierung & Exit leben im Bewertungs-Popover (ab PMF sichtbar)
   renderValuation(s);
-  renderFunding(s);
 
   // Upgrades
   for (const u of UPGRADES) {
@@ -624,12 +665,25 @@ export function render(s: GameState): void {
   }
 }
 
-// ----------------------------- Bewertung & Finanzierung -----------------------------
+// ----------------------------- Bewertung, Finanzierung & Exit -----------------------------
+// Alles lebt jetzt im Bewertungs-Popover (der Investor-Hub): Term Sheet +
+// Verkaufserlös + Verkaufen-Button + Finanzierungsrunden. Kein eigenes Panel.
+
+/** Name einer Finanzierungsrunde (für Unlock-Hinweise). */
+function roundName(id?: string): string {
+  const r = ROUNDS.find((x) => x.id === id);
+  return r ? r.name : '';
+}
 
 /** Nächste noch nicht angenommene Runde (für die Fortschritts-Zeile). */
 function nextRound(s: GameState): RoundDef | null {
   for (const r of ROUNDS) if (!s.rounds.includes(r.id)) return r;
   return null;
+}
+
+/** Gibt es gerade ein annehmbares Runden-Angebot? (Badge am (i)-Button.) */
+function hasPendingOffer(s: GameState): boolean {
+  return ROUNDS.some((r) => roundStatus(s, r) === 'offered');
 }
 
 function renderValuation(s: GameState): void {
@@ -646,111 +700,95 @@ function renderValuation(s: GameState): void {
       ? `· ${next.name} ab ${fmtMoney(next.threshold).replace('🪙 ', '')}`
       : `· 🦄 ab ${fmtMoney(UNICORN_VALUATION).replace('🪙 ', '')}`;
 
-  if (!$('valuation-popover').hidden) {
+  // Badge am (i)-Button, wenn ein Term Sheet auf dem Tisch liegt
+  $('funding-badge').hidden = !hasPendingOffer(s);
+
+  const pop = $('valuation-popover');
+  if (!pop.hidden) {
     $('ts-ertrag').innerHTML = withCoinSvg(fmtMoney(ertragskraft(s)));
     $('ts-mult').textContent = fmtFactor(valuationMultiple(s));
     $('ts-mult-detail').textContent =
-      `(Reputation ${fmtFactor(repMultiple(s))} · Gründer ${fmtFactor(gruenderBonus(s))}` +
+      `(Rating ${fmtFactor(repMultiple(s))} · Gründer ${fmtFactor(gruenderBonus(s))}` +
       (trackRecordBonus(s) > 1 ? ` · Track Record ${fmtFactor(trackRecordBonus(s))})` : ')');
     $('ts-team').innerHTML = withCoinSvg(fmtMoney(teamValue(s)));
     $('ts-hw').innerHTML = withCoinSvg(fmtMoney(hardwareValue(s)));
     $('ts-cash').innerHTML = withCoinSvg(fmtMoney(s.money));
     $('ts-total').innerHTML = withCoinSvg(fmtMoney(v));
+    $('ts-share').textContent = `${Math.round(s.founderShare * 100)} %`;
+    $('ts-proceeds').innerHTML = withCoinSvg(fmtMoney(exitProceeds(s)));
+    renderFundingRows(s);
   }
 }
 
-function renderFunding(s: GameState): void {
-  const sectionVisible = reveal(s, 'funding', s.pmfReached);
-  $('funding-section').hidden = !sectionVisible;
-  if (!sectionVisible) return;
+/** Finanzierungsrunden-Zeilen im Bewertungs-Popover. */
+function renderFundingRows(s: GameState): void {
+  // Der Finanzierungs-Block erscheint, sobald die erste Runde in Reichweite ist
+  const anyReachable = ROUNDS.some(
+    (r) => roundStatus(s, r) !== 'locked' || s.valuationHighWater >= r.threshold * 0.2,
+  );
+  $('funding-block').hidden = !anyReachable;
+  if (!anyReachable) return;
 
   for (const round of ROUNDS) {
     const row = fundingRows.get(round.id)!;
     const status = roundStatus(s, round);
-    // Progressive disclosure: die nächste Sprosse wird als Sparziel sichtbar,
-    // sobald der Hochwasserstand in ihre Nähe kommt
-    const visible = reveal(
-      s,
-      `funding:${round.id}`,
-      status !== 'locked' || s.valuationHighWater >= round.threshold * 0.2,
-    );
+    const selfDone = s.selfUnlocked.includes(round.id);
+    const visible = status !== 'locked' || s.valuationHighWater >= round.threshold * 0.2;
     row.root.hidden = !visible;
     if (!visible) continue;
 
-    const selfBtn = row.popover.querySelector('.btn--self-unlock') as HTMLButtonElement;
-    const selfDone = s.selfUnlocked.includes(round.id);
-    if (!row.popover.hidden) {
-      (row.popover.querySelector('[data-pop="cash"]') as HTMLElement).innerHTML =
-        `<span class="gain">${withCoinSvg(`+${fmtMoney(roundCash(s, round))}`)}</span>`;
-      (row.popover.querySelector('[data-pop="dilution"]') as HTMLElement).textContent =
-        `−${Math.round(roundDilution(s, round) * 100)} Prozentpunkte`;
-      selfBtn.hidden = status === 'accepted' || selfDone;
-      selfBtn.disabled = s.money < round.selfUnlockPrice || status === 'locked';
+    row.root.classList.toggle('fund-item--done', status === 'accepted' || selfDone);
+    const cashStr = withCoinSvg(`+${fmtMoney(roundCash(s, round))}`);
+    const dilStr = `−${Math.round(roundDilution(s, round) * 100)} %`;
+
+    // Annehmen-Button
+    if (status === 'accepted') {
+      row.status.textContent = '✓ an Bord';
+      row.accept.hidden = true;
+    } else if (selfDone) {
+      row.status.textContent = 'freigekauft';
+      row.accept.hidden = true;
+    } else if (status === 'offered') {
+      row.status.textContent = '';
+      row.accept.hidden = false;
+      row.accept.disabled = false;
+      row.accept.innerHTML = `<span class="gain">${cashStr}</span> annehmen`;
+    } else {
+      row.accept.hidden = true;
     }
 
-    switch (status) {
-      case 'accepted':
-        setButton(row.button, ICON_CHECK, 'an Bord', 'Angenommen');
-        row.button.disabled = true;
-        row.button.style.setProperty('--afford', '0');
-        row.root.classList.add('item--owned');
-        row.meta.textContent = `Hürde aktiv: ${round.hurdleText.split(':')[0]}`;
-        break;
-      case 'offered':
-        setButton(row.button, '', 'Annehmen ✍️', 'Runde annehmen');
-        row.button.disabled = false;
-        row.button.style.setProperty('--afford', '0');
-        row.meta.innerHTML =
-          `<span class="gain">${withCoinSvg(`+${fmtMoney(roundCash(s, round))}`)}</span>` +
-          ` · −${Math.round(roundDilution(s, round) * 100)} % Anteil` +
-          (selfDone ? ' · Ära bereits freigekauft' : '');
-        break;
-      case 'trackGate':
-        setButton(row.button, ICON_LOCK, 'Annehmen', 'Gesperrt');
-        row.button.disabled = true;
-        row.button.style.setProperty('--afford', '0');
-        row.meta.textContent = `🔒 Investoren wollen Track Record: ${round.minExits} Exit${round.minExits > 1 ? 's' : ''}` +
-          (selfDone ? ' · Ära bereits freigekauft' : ' — oder bootstrappen (i)');
-        break;
-      default: // locked
-        setButton(row.button, ICON_LOCK, 'Annehmen', 'Gesperrt');
-        row.button.disabled = true;
-        row.button.style.setProperty('--afford', '0');
-        row.meta.innerHTML = withCoinSvg(`ab Bewertung ${fmtMoney(round.threshold)}`);
+    // Meta-Zeile je nach Status
+    if (status === 'accepted') {
+      row.meta.textContent = `Hürde aktiv: ${round.hurdleText.split(':')[0]}`;
+    } else if (status === 'offered') {
+      row.meta.innerHTML = `<span class="gain">${cashStr}</span> · ${dilStr} Anteil · Hürde: ${round.hurdleText.split(':')[0]}`;
+    } else if (status === 'trackGate') {
+      row.meta.textContent = `🔒 Investoren wollen ${round.minExits} Exit${round.minExits > 1 ? 's' : ''} — oder aus eigener Tasche`;
+    } else {
+      row.meta.innerHTML = withCoinSvg(`ab Bewertung ${fmtMoney(round.threshold)}`);
     }
-  }
 
-  // Exit-Zeile: Erlös-Vorschau
-  const exitVisible = s.pmfReached;
-  $('exit-row').hidden = !exitVisible;
-  if (exitVisible) {
-    $('exit-meta').innerHTML =
-      `Verkauf deines StartUps: <span class="gain">${withCoinSvg(`+${fmtMoney(exitProceeds(s))}`)}</span>` +
-      ` <small>(Anteil ${Math.round(s.founderShare * 100)} %)</small>`;
+    // Bootstrap-Button ("aus eigener Tasche") — sichtbar, sobald erreichbar,
+    // solange die Runde weder angenommen noch schon freigekauft ist
+    const canSelf = !selfDone && status !== 'accepted' && status !== 'locked';
+    row.self.hidden = !canSelf;
+    if (canSelf) {
+      row.self.disabled = s.money < round.selfUnlockPrice;
+      row.self.innerHTML = `${withCoinSvg(fmtMoney(round.selfUnlockPrice))} eigene Tasche`;
+      setAfford(row.self, s.money, round.selfUnlockPrice);
+    }
   }
 }
 
-// ----------------------------- Exit-Overlay -----------------------------
+// ----------------------------- Exit-Overlay (nur Perk-Shop) -----------------------------
 
-/** Rendert Term-Sheet-Phase und Perk-Shop. In beiden Phasen live aktualisiert. */
-export function renderExitOverlay(s: GameState, meta: MetaState): void {
-  // Phase 1: Term Sheet
-  const v = valuation(s);
-  $('exit-buyer').textContent = buyerFor(v);
-  $('ex-ertrag').innerHTML = withCoinSvg(fmtMoney(ertragskraft(s)));
-  $('ex-mult').textContent = fmtFactor(valuationMultiple(s));
-  $('ex-mult-detail').textContent =
-    `(Rep ${fmtFactor(repMultiple(s))} · Gründer ${fmtFactor(gruenderBonus(s))}` +
-    (trackRecordBonus(s) > 1 ? ` · Track Record ${fmtFactor(trackRecordBonus(s))})` : ')');
-  $('ex-team').innerHTML = withCoinSvg(fmtMoney(teamValue(s)));
-  $('ex-hw').innerHTML = withCoinSvg(fmtMoney(hardwareValue(s)));
-  $('ex-cash').innerHTML = withCoinSvg(fmtMoney(s.money));
-  $('ex-total').innerHTML = withCoinSvg(fmtMoney(v));
-  $('ex-share').textContent = `${Math.round(s.founderShare * 100)} %`;
-  $('ex-proceeds').innerHTML = withCoinSvg(fmtMoney(exitProceeds(s)));
-
-  // Phase 2: Perk-Shop (Buttons wurden von main.ts mit stabilen IDs angelegt)
+/** Rendert den Perk-Shop im Overlay. Live aktualisiert bei jedem Kauf. */
+export function renderExitOverlay(meta: MetaState): void {
   $('perk-bank').innerHTML = withCoinSvg(fmtMoney(meta.bank));
+
+  // Kann sich der Spieler überhaupt einen Perk leisten? Steuert den Hinweis
+  // am immer sichtbaren "Neu gründen"-Button (Punkt: Screen muss abschließbar sein).
+  let cheapestAffordable = false;
   for (const p of PERKS) {
     const btn = document.getElementById(`perk-btn-${p.id}`) as HTMLButtonElement | null;
     const lvlEl = document.getElementById(`perk-lvl-${p.id}`);
@@ -764,9 +802,22 @@ export function renderExitOverlay(s: GameState, meta: MetaState): void {
     } else {
       const price = perkPrice(meta, p.id);
       btn.innerHTML = `<span>${withCoinSvg(fmtMoney(price))}</span>`;
-      btn.disabled = meta.bank < price;
+      const affordable = meta.bank >= price;
+      btn.disabled = !affordable;
+      if (affordable) cheapestAffordable = true;
       setAfford(btn, meta.bank, price);
     }
+  }
+
+  // Hinweis + Button-Beschriftung: Screen ist IMMER abschließbar
+  const hint = $('perk-hint');
+  const newRunBtn = $<HTMLButtonElement>('new-run-btn');
+  if (cheapestAffordable) {
+    hint.textContent = '';
+    newRunBtn.textContent = 'Neu gründen 🚀';
+  } else {
+    hint.textContent = 'Der Erlös bleibt in der Bank — spare über mehrere Exits.';
+    newRunBtn.textContent = 'Ohne Kauf neu gründen 🚀';
   }
 }
 

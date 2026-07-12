@@ -45,7 +45,9 @@ const visibleTeamRows = await page.locator('#team-list .item:visible').count();
 const visibleHwRows = await page.locator('#hw-list .item:visible').count();
 const visibleUpgrades = await page.locator('#upgrade-list .item:visible').count();
 const incidentBannerVisible = await page.locator('#event-banner').isVisible();
-console.log(`Sichtbar: Team ${visibleTeamRows} (soll 1), HW ${visibleHwRows} (soll 1), Upgrades ${visibleUpgrades} (soll 0), Incident-Banner ${incidentBannerVisible} (soll false)`);
+// Team 2: Intern (freigeschaltet) + Junior als nächstes Ziel ("🔒 ab Rating CC")
+console.log(`Sichtbar: Team ${visibleTeamRows} (soll 2: Intern + nächstes Ziel Junior), HW ${visibleHwRows} (soll 1), Upgrades ${visibleUpgrades} (soll 0), Incident-Banner ${incidentBannerVisible} (soll false)`);
+console.log('Junior-Ziel-Bedingung:', (await page.locator('#team-list .item', { hasText: 'Junior' }).locator('.item__meta').textContent().catch(() => '—'))?.trim());
 
 // 4) Ersten Intern einstellen (20 €) — erst genug klicken
 for (let i = 0; i < 15; i += 1) await page.click('#click-btn');
@@ -136,52 +138,57 @@ await page2.goto('http://localhost:4173/');
 await page2.waitForTimeout(600);
 page = page2; // ab hier im Endgame-Context weiterarbeiten
 
-// Bewertungs-Anzeige sichtbar?
+// Bewertungs-Anzeige + Rating im Header
 const valVisible = await page.locator('#valuation-stat').isVisible();
 console.log('Bewertungs-Stat sichtbar:', valVisible, '| Wert:', (await page.textContent('#valuation')).trim());
 console.log('Fortschritt zur nächsten Runde:', (await page.textContent('#valuation-next')).trim());
+console.log('Header-Rating (Rep 60 → soll BBB):', (await page.textContent('#rep-rating')).trim());
+console.log('Funding-Badge sichtbar (Seed-Angebot liegt vor):', await page.locator('#funding-badge').isVisible());
 
-// Finanzierungs-Panel + Seed-Angebot (Bewertung 2 M > Schwelle 1 M)
-const fundingVisible = await page.locator('#funding-section').isVisible();
-const seedMeta = (await page.textContent('#funding-list .item:first-child .item__meta')).trim();
-console.log('Finanzierungs-Panel sichtbar:', fundingVisible, '| Seed:', seedMeta);
+// Nächster gesperrter Rang immer sichtbar (Staff ist round-gated): mit Bedingung?
+const staffRow = page.locator('#team-list .item', { hasText: 'Staff' });
+console.log('Staff-Zeile sichtbar:', await staffRow.isVisible().catch(() => false),
+            '| Bedingung:', (await staffRow.locator('.item__meta').textContent().catch(() => '—'))?.trim());
 
-// Term-Sheet-Popover der Bewertung öffnen
+// Bewertungs-Popover = Investor-Hub: Term Sheet + Erlös + Finanzierung
 await page.click('#valuation-info-btn');
 await page.waitForTimeout(150);
 console.log('Term Sheet — Ertragskraft:', (await page.textContent('#ts-ertrag')).trim(),
             '| Multiple:', (await page.textContent('#ts-mult')).trim(),
-            '| Total:', (await page.textContent('#ts-total')).trim());
-await page.keyboard.press('Escape');
+            '| Bewertung:', (await page.textContent('#ts-total')).trim(),
+            '| Erlös:', (await page.textContent('#ts-proceeds')).trim());
+const fundVisible = await page.locator('#funding-block').isVisible();
+const seedMeta = (await page.textContent('#funding-list .fund-item:first-child .fund-item__meta')).trim();
+console.log('Finanzierungs-Block im Popover:', fundVisible, '| Seed:', seedMeta);
+await page.screenshot({ path: 'screenshot-hub.png' });
 
-// Seed annehmen -> Cash rein, Ära offen (VPS erscheint)
-await page.click('#funding-list .item:first-child > .btn--buy');
+// Seed annehmen (Accept-Button in der ersten Fund-Zeile) -> Cash rein, VPS frei
+await page.click('#funding-list .fund-item:first-child .fund-item__actions .btn--buy');
 await page.waitForTimeout(300);
 console.log('Nach Seed — Geld:', (await page.textContent('#money')).trim());
 const vpsVisible = await page.locator('#hw-list .item', { hasText: 'VPS' }).isVisible().catch(() => false);
 console.log('VPS-Stufe nach Seed sichtbar:', vpsVisible);
 
-// Exit-Overlay öffnen
-await page.click('#exit-btn');
-await page.waitForTimeout(200);
-const overlayVisible = await page.locator('#exit-overlay').isVisible();
-console.log('Exit-Overlay sichtbar:', overlayVisible,
-            '| Erlös:', (await page.textContent('#ex-proceeds')).trim(),
-            '| Käufer:', (await page.textContent('#exit-buyer')).trim());
-
-await page.screenshot({ path: 'screenshot-exit.png' });
-
-// Verkaufen -> Perk-Shop
-await page.click('#exit-confirm');
+// Verkaufen: zwei-Klick-Bestätigung im Popover
+await page.click('#sell-btn'); // scharf schalten
+await page.waitForTimeout(120);
+console.log('Sell-Button scharf:', (await page.textContent('#sell-btn')).trim());
+await page.click('#sell-btn'); // bestätigen
 await page.waitForTimeout(300);
-const perkPhaseVisible = await page.locator('#exit-phase-perks').isVisible();
-console.log('Perk-Shop sichtbar:', perkPhaseVisible, '| Bank:', (await page.textContent('#perk-bank')).trim());
+const overlayVisible = await page.locator('#exit-overlay').isVisible();
+console.log('Perk-Overlay nach Verkauf sichtbar:', overlayVisible,
+            '| Verkauft:', (await page.textContent('#sold-info')).trim(),
+            '| Bank:', (await page.textContent('#perk-bank')).trim());
 const perkRows = await page.locator('#perk-list-decke .item, #perk-list-tempo .item').count();
 console.log('Perk-Zeilen:', perkRows, '(soll 6)');
 
-// Netzwerk kaufen (Bank sollte reichen — 1 M Erlös, Netzwerk 15 M? nein)
+// Punkt 6: Screen muss abschließbar sein, auch wenn kein Perk leistbar
 const netzwerkBtn = page.locator('#perk-btn-netzwerk');
 console.log('Netzwerk-Button:', (await netzwerkBtn.textContent()).trim(), '| disabled:', await netzwerkBtn.isDisabled());
+const newRunBtn = page.locator('#new-run-btn');
+console.log('Neu-gründen-Button sichtbar:', await newRunBtn.isVisible(),
+            '| Label:', (await newRunBtn.textContent()).trim(),
+            '| Hinweis:', (await page.textContent('#perk-hint')).trim());
 
 await page.screenshot({ path: 'screenshot-perks.png' });
 console.log('Endgame-Fehler:', errors.length ? errors : 'keine');

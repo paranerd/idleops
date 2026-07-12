@@ -109,11 +109,19 @@ describe('Reputation', () => {
     expect(s.emp['junior']).toBe(1); // niemand streikt
   });
 
-  it('Aufbaurate wächst mit der Firma', () => {
+  it('Aufbaurate wächst mit der Firma (pro Rang gestaffelt)', () => {
     const s = initialState();
-    expect(repPerMinute(s)).toBeCloseTo(0.5);
-    s.emp['intern'] = 10;
-    expect(repPerMinute(s)).toBeCloseTo(1.0);
+    expect(repPerMinute(s)).toBeCloseTo(0.5); // nur Basis, Rep 0 → Logistik ×1
+    s.emp['intern'] = 10; // 10 × 0,04 = 0,4
+    expect(repPerMinute(s)).toBeCloseTo(0.9);
+  });
+
+  it('höhere Ränge heben die Reputation stärker als Interns', () => {
+    const intern = initialState();
+    intern.emp['intern'] = 1;
+    const senior = initialState();
+    senior.emp['senior'] = 1;
+    expect(repPerMinute(senior)).toBeGreaterThan(repPerMinute(intern));
   });
 
   it('Faktor: 0,8 bei Rep 0, 1,2 bei Rep 100', () => {

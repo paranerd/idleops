@@ -40,9 +40,9 @@
           <span class="stat__value" id="valuation"></span>
           <span class="stat__label">
             Bewertung <span id="valuation-next"></span>
-            <button id="valuation-info-btn" class="info-btn" aria-label="Wie setzt sich die Bewertung zusammen?" aria-expanded="false">i</button>
+            <button id="valuation-info-btn" class="info-btn" aria-label="Term Sheet, Finanzierung & Exit" aria-expanded="false">i<span class="info-btn__badge" id="funding-badge" hidden></span></button>
           </span>
-          <div class="popover popover--left" id="valuation-popover" hidden>
+          <div class="popover popover--wide" id="valuation-popover" hidden>
             <h3>Term Sheet</h3>
             <div class="breakdown">
               <div class="breakdown__row"><span>📈 Ertragskraft <small>(nachhaltiger Gewinn/s × 2.000)</small></span><strong id="ts-ertrag"></strong></div>
@@ -51,29 +51,36 @@
               <div class="breakdown__row"><span>🖥️ Hardware-Restwert</span><strong id="ts-hw"></strong></div>
               <div class="breakdown__row"><span>💰 Cash</span><strong id="ts-cash"></strong></div>
               <div class="breakdown__row breakdown__row--total"><span>= Bewertung</span><strong id="ts-total"></strong></div>
+              <div class="breakdown__row"><span>× Dein Anteil</span><strong id="ts-share"></strong></div>
+              <div class="breakdown__row breakdown__row--total breakdown__row--proceeds"><span>= Verkaufserlös</span><strong id="ts-proceeds"></strong></div>
             </div>
-            <p class="popover__tip">Die Ertragskraft nutzt den Bestwert deines 10-Minuten-Schnitts — Spikes zählen nicht. Meilensteine merken sich deinen Höchststand.</p>
+            <button id="sell-btn" class="btn btn--danger btn--block">Verkaufen (Exit) 💸</button>
+            <div id="funding-block" hidden>
+              <h4 class="subheading">💼 Finanzierungsrunden</h4>
+              <div id="funding-list" class="list list--compact"></div>
+            </div>
+            <p class="popover__tip">Ertragskraft = Bestwert deines 10-Minuten-Schnitts (Spikes zählen nicht). Verkaufen beendet den Run und bringt den Erlös in Gründer-Perks für die nächste Gründung.</p>
           </div>
         </div>
-        <div class="stat stat--rep">
+        <div class="stat stat--rep" id="rep-stat">
+          <span class="stat__value" id="rep-rating">C</span>
           <span class="stat__label">
-            Reputation <span id="rep-value">0</span>/100
-            <button id="rep-info-btn" class="info-btn" aria-label="Wie funktioniert Reputation?" aria-expanded="false">i</button>
+            Rating
+            <button id="rep-info-btn" class="info-btn" aria-label="Wie funktioniert das Rating?" aria-expanded="false">i</button>
           </span>
-          <div class="repbar"><div class="repbar__fill" id="rep-fill"></div></div>
           <div class="popover" id="rep-popover" hidden>
-            <h3>Reputation</h3>
+            <h3>Rating &amp; Reputation</h3>
             <p>
-              Wächst automatisch, solange <strong>kein Incident</strong> läuft:
-              +0,5/min plus +0,05/min pro Angestellten.<br />
-              Aktuell: <strong id="rep-rate">+0,5/min</strong>
+              Aktuell: <strong id="rep-rating-pop">C</strong>
+              (<strong id="rep-value">0</strong>/100) · Aufbau <strong id="rep-rate">+0,5/min</strong>
             </p>
+            <div class="repbar"><div class="repbar__fill" id="rep-fill"></div></div>
             <ul>
+              <li>Wächst incident-frei; höhere Ränge heben das Rating stärker (ein Senior mehr als ein Intern)</li>
               <li>Incidents kosten Reputation: leicht <strong>−2</strong>, schwer <strong>−10</strong>, Hug of Death <strong>−5</strong></li>
-              <li>Schaltet höhere Ränge frei (Junior ab 8, Senior ab 25)</li>
-              <li>Wirkt auf den Gewinn: Faktor ×0,8 (Rep 0) bis ×1,2 (Rep 100)</li>
+              <li>Schaltet höhere Ränge frei und bestimmt das Bewertungs-Multiple (×0,8…×1,2 auf den Gewinn)</li>
             </ul>
-            <p class="popover__tip">Tipp: Tech-Upgrades wie CI/CD und Unit-Tests senken das Incident-Risiko.</p>
+            <p class="popover__tip">Der Aufbau wird nach oben zäh — die letzten Stufen bis AAA sind echte Arbeit. Tech-Upgrades wie CI/CD senken das Incident-Risiko.</p>
           </div>
         </div>
       </div>
@@ -121,56 +128,27 @@
         <h2>🚀 Upgrades &amp; Perks</h2>
         <div id="upgrade-list" class="list"></div>
       </section>
-
-      <section class="panel" id="funding-section" hidden>
-        <h2>💼 Finanzierung</h2>
-        <div id="funding-list" class="list"></div>
-        <div class="exit-row" id="exit-row" hidden>
-          <div class="exit-row__info">
-            <div class="item__title"><span class="item__icon">🚪</span> Der Exit</div>
-            <div class="item__meta" id="exit-meta"></div>
-          </div>
-          <button id="exit-btn" class="btn btn--buy">Term Sheet ansehen</button>
-        </div>
-      </section>
     </main>
 
     <footer class="footer">
       <button id="reset-btn" class="btn btn--ghost">Neues Spiel</button>
     </footer>
 
-    <!-- Exit-Overlay: Phase 1 = Term Sheet, Phase 2 = Perk-Shop -->
+    <!-- Exit-Overlay: Perk-Shop (der Verkauf selbst passiert im Bewertungs-Popover) -->
     <div class="overlay" id="exit-overlay" hidden>
       <div class="overlay__card">
-        <div id="exit-phase-sheet">
-          <h2>🚪 Der Exit</h2>
-          <p class="overlay__buyer">Käufer: <strong id="exit-buyer"></strong></p>
-          <div class="breakdown">
-            <div class="breakdown__row"><span>📈 Ertragskraft</span><strong id="ex-ertrag"></strong></div>
-            <div class="breakdown__row"><span>× Multiple <small id="ex-mult-detail"></small></span><strong id="ex-mult"></strong></div>
-            <div class="breakdown__row"><span>👥 Team-Prämie</span><strong id="ex-team"></strong></div>
-            <div class="breakdown__row"><span>🖥️ Hardware-Restwert</span><strong id="ex-hw"></strong></div>
-            <div class="breakdown__row"><span>💰 Cash</span><strong id="ex-cash"></strong></div>
-            <div class="breakdown__row breakdown__row--total"><span>= Bewertung</span><strong id="ex-total"></strong></div>
-            <div class="breakdown__row"><span>× Dein Anteil</span><strong id="ex-share"></strong></div>
-            <div class="breakdown__row breakdown__row--total breakdown__row--proceeds"><span>= Dein Erlös</span><strong id="ex-proceeds"></strong></div>
-          </div>
-          <p class="popover__tip">Verkaufen beendet diesen Run: Team, Hardware, Reputation und Schulungen gehen an den Käufer. Der Erlös fließt in Gründer-Perks für deine nächste Gründung.</p>
-          <div class="overlay__actions">
-            <button id="exit-cancel" class="btn btn--ghost">Doch nicht</button>
-            <button id="exit-confirm" class="btn btn--danger">Verkaufen 💸</button>
-          </div>
-        </div>
-        <div id="exit-phase-perks" hidden>
-          <h2>🧬 Gründer-Perks</h2>
-          <p class="overlay__bank">Bank: <strong id="perk-bank"></strong></p>
+        <h2>🧬 Gründer-Perks</h2>
+        <p class="overlay__buyer" id="sold-info"></p>
+        <p class="overlay__bank">Erlös in der Bank: <strong id="perk-bank"></strong></p>
+        <div class="overlay__scroll">
           <h3 class="subheading">🏔️ Decken-Heber <small>— heben, was ein Run erreichen kann</small></h3>
           <div id="perk-list-decke" class="list"></div>
           <h3 class="subheading">⚡ Beschleuniger <small>— machen den nächsten Run schneller</small></h3>
           <div id="perk-list-tempo" class="list"></div>
-          <div class="overlay__actions">
-            <button id="new-run-btn" class="btn btn--danger">Neu gründen 🚀</button>
-          </div>
+        </div>
+        <div class="overlay__actions overlay__actions--sticky">
+          <span class="overlay__hint" id="perk-hint"></span>
+          <button id="new-run-btn" class="btn btn--danger">Neu gründen 🚀</button>
         </div>
       </div>
     </div>

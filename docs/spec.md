@@ -55,11 +55,11 @@ Der Gründer ist im Gameplay der Klick — Schulungen und Zertifikate sind seine
 - **Balancing-Leitplanke**: Voll ausgebaut darf der Klick höchstens ~+100 % Einkommensäquivalent bringen (Multiplikator ÷ Cooldown ≤ 1,0 × Gewinn/s), sonst fühlt sich Idle-Spielen bestraft an. Startwert ist +50 % (15× / 30 s), voll ausgebaut +95 % (21× / 22 s).
 - Der satirische Ton bleibt: Der teuerste Eintrag ist der MBA („teuer, Effekt fragwürdig").
 
-## Reputation
+## Reputation (angezeigt als Rating C…AAA)
 
-Reputation ist die zweite zentrale Größe neben Geld – und die einzige, die **sinken** kann.
+Reputation ist die zweite zentrale Größe neben Geld – und die einzige, die **sinken** kann. Intern läuft sie weiter auf einer 0–100-Skala; **angezeigt** wird sie aber als Kredit-Rating (Entscheidung 12.07.2026): der Header zeigt „AA", die genaue Zahl steht im Popover. Neun Stufen, so gelegt, dass die Rang-Schwellen sauber auf Ratings fallen — Junior (8) → CC, Senior (25) → CCC, Staff (40) → B, Principal (60) → BBB, 10x (80) → A, Spitze AAA ab 93. Das fühlt sich wie ein echtes Firmen-Rating an und macht Unlock-Hinweise lesbar („🔒 ab Rating CCC"). Werte in `config.ts` (`REP_RATINGS`), Label in `ui/format.ts` (`ratingLabel`).
 
-- **Aufbau**: Steigt langsam bei incident-freiem Betrieb (Rate skaliert mit Unternehmensgröße). Dauerhafte Perks geben einen kleinen permanenten Sockel.
+- **Aufbau** (`repPerMinute`): Steigt bei incident-freiem Betrieb. Der Angestellten-Beitrag ist **pro Rang gestaffelt** (`rank.repGain`, Entscheidung 12.07.2026) — ein Senior/Principal hebt die Marke stärker als ein Intern (real erhöht ein erfahrener Hire die Firmen-Reputation mehr). Die Summe ist gedeckelt (`REP_EMP_RATE_CAP = 2,5/min`), und der Aufbau ist **logistisch** zäh (× (1 − Rep/105)): früh (Rating C/CC) kaum spürbar, die letzten Stufen bis AAA sind echte Arbeit. Dauerhafte Perks/„Bekannter Name" geben einen Sockel. Per `balance_sim.py` + `endgame_sim.py` gegengerechnet: Early-Gates unverändert (Junior ~10 min, Senior ~23–31 min).
 - **Verlust**: Incidents ziehen Reputation ab – je schwerer der Incident, desto mehr.
 - **Boden**: Reputation kann nicht unter 0 fallen.
 - **Wirkung**:
@@ -326,8 +326,10 @@ Weitere Punkte:
 Kalibrierung (entschieden):
 
 - Gesamtspielzeit bis zum Unicorn: **~25–40 h** für einen aktiven Spieler, über **4–6 Exit-Runs** – jeder Run erreicht grob das 2,5–3-Fache der Bewertungs-Decke des vorherigen
-- Die Bewertung ist **live sichtbar ab dem Meilenstein Produkt-Markt-Fit** (progressive disclosure): klein im Header neben Gewinn/s, mit Fortschritt zur nächsten Sprosse („Bewertung 2,3 M · Series A ab 10 M“)
+- Die Bewertung ist **live sichtbar ab dem Meilenstein Produkt-Markt-Fit** (progressive disclosure): eigener Header-Stat neben Cash (Münze + Wert + Fortschritt „· Series A ab 10 M" + (i)), im selben Stil wie Cash und Rating.
 - **Meilenstein-Mix**: Erzähl-Meilensteine feuern automatisch (Feier + Unlock), Finanzierungsrunden sind echte Angebote (annehmen = Cash + Hürde, ablehnen bleibt spielbar)
+- **UI: der „Investor-Hub" (Entscheidung 12.07.2026)**: Es gibt **kein eigenes Finanzierungs-Panel** mehr. Das (i)-Popover neben der Bewertung ist der komplette Investor-Bereich — Term Sheet (Aufschlüsselung inkl. × Dein Anteil = Verkaufserlös), der **Verkaufen-Button** (zwei-Klick-Bestätigung, weil endgültig) und die **Finanzierungsrunden** (kompakte Zeilen mit „annehmen" und „aus eigener Tasche"). Ein pulsierendes **Badge** am (i) signalisiert ein wartendes Term Sheet; zusätzlich ein Toast. Nach dem Verkauf öffnet ein Overlay den Perk-Shop; dessen „Neu gründen"-Aktion klebt **sticky** unten und ist immer erreichbar — auch wenn kein Perk leistbar ist (dann „Ohne Kauf neu gründen", der Erlös bleibt in der Bank).
+- **UI: nächster Unlock immer sichtbar (Entscheidung 12.07.2026)**: In Team und Hardware ist die jeweils nächste noch gesperrte Stufe stets sichtbar — mit Bedingung („🔒 ab Rating CCC" bzw. „🔒 ab 💼 Series A"), damit man weiß, worauf man hinarbeitet. Runden-gesperrte Hardware-Ären erscheinen erst ab Produkt-Markt-Fit (vorher wäre „ab Seed" in Minute 1 verfrüht).
 
 **Leitidee**: Die Funding-Leiter ist gleichzeitig Meilenstein-Kette, Fortschrittsmaß pro Run und die harte Grenze gegen das „Unicorn in einem Rutsch“. Die späten Hardware-**und Rang**-Ären sind hinter Finanzierungsrunden gegated, die Bewertungs-Schwellen wachsen pro Sprosse um ×7–10, und die Endgame-Käufe haben ein **steileres Preiswachstum** (×1,20–1,35 statt ×1,15), sodass eine Ära einen Run trägt statt durchzurauschen. Run 1 endet dadurch von selbst um Series A; jeder weitere Run schafft mit Exit-Perks ungefähr eine Sprosse mehr. Es braucht **keine künstliche Bremse** (kein sqrt/log auf der Bewertung – intransparent, widerspricht dem Vorrechnen-Prinzip) und **keine harten Caps** auf Angestellte oder Hardware (fühlen sich in Idle-Games gemein an). Reputation wird stattdessen **logistisch** zäh (Rate × (1 − Rep/105)) – früh unverändert, spät echte Arbeit, und der Namens-Perk-Sockel bekommt so langfristig Wert.
 

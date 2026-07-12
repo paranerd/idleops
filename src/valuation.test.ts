@@ -34,6 +34,7 @@ import {
 import { incidentTitles, rollSpike } from './events';
 import { advance, advanceValuation } from './tick';
 import { initialMeta, initialState } from './state';
+import { ratingLabel } from './ui/format';
 import { PERKS, ROUNDS, UNICORN_VALUATION } from './config';
 
 const seed = ROUNDS[0];
@@ -194,15 +195,25 @@ describe('Finanzierungsrunden', () => {
   });
 });
 
-describe('Reputation (logistisch)', () => {
+describe('Reputation (logistisch, pro Rang)', () => {
   it('früh fast unverändert, spät zäh', () => {
     const s = initialState();
     expect(repPerMinute(s)).toBeCloseTo(0.5 * (1 - 0 / 105));
     s.rep = 8;
     expect(repPerMinute(s)).toBeGreaterThan(0.4); // Junior-Gate kaum betroffen
     s.rep = 90;
-    s.emp['intern'] = 100; // Angestellten-Beitrag gedeckelt (+1,5)
-    expect(repPerMinute(s)).toBeCloseTo((0.5 + 1.5) * (1 - 90 / 105));
+    s.emp['intern'] = 100; // Angestellten-Beitrag gedeckelt bei 2,5
+    expect(repPerMinute(s)).toBeCloseTo((0.5 + 2.5) * (1 - 90 / 105));
+  });
+
+  it('Rating-Label: Schwellen fallen sauber auf Ratings', () => {
+    expect(ratingLabel(0)).toBe('C');
+    expect(ratingLabel(8)).toBe('CC'); // Junior-Gate
+    expect(ratingLabel(25)).toBe('CCC'); // Senior-Gate
+    expect(ratingLabel(40)).toBe('B'); // Staff-Gate
+    expect(ratingLabel(60)).toBe('BBB'); // Principal-Gate
+    expect(ratingLabel(80)).toBe('A'); // 10x-Gate
+    expect(ratingLabel(100)).toBe('AAA');
   });
 });
 

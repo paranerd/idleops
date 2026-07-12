@@ -65,6 +65,10 @@ TRAININGS = [
     ("Verhandlung",  8000.0, 3,  0),
     ("MBA",         50000.0, 1, -1),
 ]
+REP_GAIN = {  # Reputationsaufbau pro Kopf/min, pro Rang (spiegelt config.ts rank.repGain)
+    "Intern": 0.04, "Junior": 0.08, "Senior": 0.16, "Staff": 0.3, "Principal": 0.6, "10x": 1.2,
+}
+REP_EMP_CAP = 2.5   # max. Angestellten-Beitrag /min
 DEAL_MULT_BASE = 15.0
 DEAL_CD_BASE = 30.0
 
@@ -294,7 +298,7 @@ def simulate_run(meta: Meta, run_no: int, verbose=True):
         clicking = minutes < ACTIVE_CLICK_MINUTES
         inc = r.income() + r.click_rate_bonus() + (CLICK_VALUE * CLICK_RATE if clicking and not r.milestone else 0)
         r.money += inc * BUY_EVERY_S
-        rep_rate = (0.5 + min(1.5, 0.05 * sum(r.emp.values()))) * max(0.0, 1 - r.rep / 105)
+        rep_rate = (0.5 + min(REP_EMP_CAP, sum(REP_GAIN[k] * n for k, n in r.emp.items()))) * max(0.0, 1 - r.rep / 105)
         r.rep = min(100.0, r.rep + rep_rate / 60 * BUY_EVERY_S)
 
         if not r.milestone and r.income() > CLICK_VALUE * CLICK_RATE:

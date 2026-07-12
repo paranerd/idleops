@@ -25,8 +25,29 @@ export const MOTIVATION_MAX = 1.5;
 // Reputation
 export const REP_MAX = 100;
 export const REP_BASE_PER_MIN = 0.5;
-export const REP_PER_EMPLOYEE_PER_MIN = 0.05;
+// Angestellten-Beitrag zum Reputationsaufbau ist jetzt PRO RANG gestaffelt
+// (rank.repGain) — ein Senior/Principal hebt die Marke stärker als ein Intern.
+// Die Summe aller Köpfe ist gedeckelt, damit große Teams die Kurve nicht
+// trivialisieren; der Aufbau ist zusätzlich logistisch zäh (siehe REP_SOFTCAP).
+export const REP_EMP_RATE_CAP = 2.5; // max. Angestellten-Beitrag /min
 export const REP_OFFLINE_CAP_SECONDS = 2 * 3600; // Offline-Aufbau gedeckelt
+
+// Rating-Skala: Reputation wird als Kredit-Rating C…AAA angezeigt (die
+// internen 0–100-Werte bleiben; nur die Darstellung ändert sich). Neun Stufen,
+// bewusst so gelegt, dass die Rang-Schwellen sauber auf Ratings fallen:
+// Junior 8 → CC, Senior 25 → CCC, Staff 40 → B, Principal 60 → BBB, 10x 80 → A.
+// Unlock-Hinweise können so „ab Rating CC/CCC/…" anzeigen.
+export const REP_RATINGS: { min: number; label: string }[] = [
+  { min: 93, label: 'AAA' },
+  { min: 82, label: 'AA' },
+  { min: 70, label: 'A' },
+  { min: 56, label: 'BBB' },
+  { min: 42, label: 'BB' },
+  { min: 30, label: 'B' },
+  { min: 20, label: 'CCC' },
+  { min: 8, label: 'CC' },
+  { min: 0, label: 'C' },
+];
 
 // Incidents
 export const INCIDENT_PROB_PER_RISKPOINT_PER_MIN = 0.0015; // 0,15 %/min
@@ -83,17 +104,18 @@ export interface RankDef {
   riskPoints: number; // Incident-Risikopunkte pro Kopf
   repThreshold: number; // Reputations-Gate
   unlockCost: number; // einmalige Freischaltung ("Employer Branding")
+  repGain: number; // Reputationsaufbau pro Kopf und Minute (höhere Ränge heben die Marke stärker)
   requiresRound?: string; // Ära-Gate wie bei Hardware (siehe ROUNDS)
   costGrowth?: number; // steiler für Endgame-Ränge (siehe HardwareDef)
 }
 
 export const RANKS: RankDef[] = [
-  { id: 'intern', name: 'Intern', icon: '🐣', output: 0.2, basePrice: 20, motivation: 0.9, riskPoints: 3, repThreshold: 0, unlockCost: 0 },
-  { id: 'junior', name: 'Junior Developer', icon: '🧑‍💻', output: 1.5, basePrice: 300, motivation: 1.0, riskPoints: 1, repThreshold: 8, unlockCost: 150 },
-  { id: 'senior', name: 'Senior Developer', icon: '🧙', output: 8.0, basePrice: 3000, motivation: 1.1, riskPoints: 0.3, repThreshold: 25, unlockCost: 1500 },
-  { id: 'staff', name: 'Staff Developer', icon: '🦉', output: 40, basePrice: 80_000, motivation: 1.15, riskPoints: 0.1, repThreshold: 40, unlockCost: 30_000, requiresRound: 'seed', costGrowth: 1.2 },
-  { id: 'principal', name: 'Principal Developer', icon: '🧛', output: 250, basePrice: 1_400_000, motivation: 1.2, riskPoints: 0.05, repThreshold: 60, unlockCost: 500_000, requiresRound: 'series-a', costGrowth: 1.25 },
-  { id: 'tenx', name: '10x Engineer', icon: '🦄', output: 1_500, basePrice: 15_000_000, motivation: 1.25, riskPoints: 0.02, repThreshold: 80, unlockCost: 6_000_000, requiresRound: 'series-b', costGrowth: 1.33 },
+  { id: 'intern', name: 'Intern', icon: '🐣', output: 0.2, basePrice: 20, motivation: 0.9, riskPoints: 3, repThreshold: 0, unlockCost: 0, repGain: 0.04 },
+  { id: 'junior', name: 'Junior Developer', icon: '🧑‍💻', output: 1.5, basePrice: 300, motivation: 1.0, riskPoints: 1, repThreshold: 8, unlockCost: 150, repGain: 0.08 },
+  { id: 'senior', name: 'Senior Developer', icon: '🧙', output: 8.0, basePrice: 3000, motivation: 1.1, riskPoints: 0.3, repThreshold: 25, unlockCost: 1500, repGain: 0.16 },
+  { id: 'staff', name: 'Staff Developer', icon: '🦉', output: 40, basePrice: 80_000, motivation: 1.15, riskPoints: 0.1, repThreshold: 40, unlockCost: 30_000, repGain: 0.3, requiresRound: 'seed', costGrowth: 1.2 },
+  { id: 'principal', name: 'Principal Developer', icon: '🧛', output: 250, basePrice: 1_400_000, motivation: 1.2, riskPoints: 0.05, repThreshold: 60, unlockCost: 500_000, repGain: 0.6, requiresRound: 'series-a', costGrowth: 1.25 },
+  { id: 'tenx', name: '10x Engineer', icon: '🦄', output: 1_500, basePrice: 15_000_000, motivation: 1.25, riskPoints: 0.02, repThreshold: 80, unlockCost: 6_000_000, repGain: 1.2, requiresRound: 'series-b', costGrowth: 1.33 },
 ];
 
 export type UpgradeEffect =
@@ -200,10 +222,10 @@ export const REP_MULTIPLE_MAX_BONUS = 2; // Rep-Multiple = 1 + 2 × Rep/100 → 
 export const GRUENDER_BONUS_PER_TRAINING = 0.05; // Käufer bezahlt die Schulungen (Acquihire)
 
 // Reputation wird nach oben zäh (logistisch): Rate × (1 − Rep/REP_SOFTCAP).
-// Früh kaum spürbar (Rep 8/25 wie gehabt), spät echte Arbeit — und der
-// "Bekannter Name"-Sockel bekommt langfristig Wert.
+// Früh kaum spürbar (Rating C/CC), spät echte Arbeit — und der
+// "Bekannter Name"-Sockel bekommt langfristig Wert. (REP_EMP_RATE_CAP steht
+// oben im Reputations-Abschnitt.)
 export const REP_SOFTCAP = 105;
-export const REP_EMP_RATE_CAP = 1.5; // Angestellten-Beitrag max +1,5/min
 
 export interface RoundDef {
   id: string;

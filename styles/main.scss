@@ -89,8 +89,15 @@ h2 {
 }
 
 .stat--rep,
-.stat--money {
+.stat--money,
+.stat--valuation {
   position: relative;
+}
+
+// Rating im Header wie Cash/Bewertung: großer Wert + Label + (i)
+.stat--rep .stat__value {
+  color: $rep;
+  font-size: 1.3rem;
 }
 
 .info-btn {
@@ -802,4 +809,142 @@ body.shake {
   30% {
     box-shadow: inset 0 0 120px 20px rgba($gold, 0.45);
   }
+}
+
+// ----------------------------- Investor-Hub (Bewertungs-Popover) -----------------------------
+
+// Breiteres Popover für Term Sheet + Finanzierungsrunden (rechtsbündig, damit
+// es am rechten Header-Rand nicht aus dem Viewport läuft; Höhe gedeckelt)
+.popover--wide {
+  width: min(360px, calc(100vw - 2rem));
+  max-height: min(80vh, 640px);
+  overflow-y: auto;
+}
+
+// Badge am (i)-Button, wenn ein Term Sheet auf dem Tisch liegt
+.info-btn {
+  position: relative;
+}
+.info-btn__badge {
+  position: absolute;
+  top: -3px;
+  right: -3px;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: $gold;
+  box-shadow: 0 0 0 2px $panel;
+  animation: badge-pulse 1.4s ease-in-out infinite;
+}
+
+@keyframes badge-pulse {
+  0%, 100% { transform: scale(1); opacity: 1; }
+  50% { transform: scale(1.35); opacity: 0.7; }
+}
+
+// Verkaufen-Button (voll breit) unter dem Term Sheet
+.btn--block {
+  display: flex;
+  width: 100%;
+  justify-content: center;
+  margin: 0.6rem 0;
+}
+
+// "Wirklich verkaufen?"-Zustand
+.btn--armed {
+  animation: armed-pulse 0.8s ease-in-out infinite;
+}
+@keyframes armed-pulse {
+  0%, 100% { filter: brightness(1); }
+  50% { filter: brightness(1.35); }
+}
+
+// Kleine Buttons in den Finanzierungs-Zeilen
+.btn--sm {
+  min-width: 0;
+  padding: 0.32rem 0.6rem;
+  font-size: 0.76rem;
+}
+
+.list--compact {
+  gap: 0.4rem;
+}
+
+// Finanzierungsrunden-Zeile im Popover
+.fund-item {
+  padding: 0.5rem 0.6rem;
+  border: 1px solid $panel-border;
+  border-radius: 6px;
+  background: rgba(255, 255, 255, 0.02);
+
+  &--done {
+    opacity: 0.6;
+  }
+
+  &__head {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 0.5rem;
+  }
+
+  &__title {
+    font-weight: 600;
+    font-size: 0.85rem;
+  }
+
+  &__status {
+    color: $accent;
+    font-size: 0.75rem;
+    white-space: nowrap;
+  }
+
+  &__meta {
+    color: $text-dim;
+    font-size: 0.74rem;
+    margin: 3px 0;
+    line-height: 1.35;
+  }
+
+  &__actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.4rem;
+  }
+
+  // leere Buttons (hidden) erzeugen keine Lücke
+  &__actions:empty {
+    display: none;
+  }
+}
+
+// ----------------------------- Perk-Overlay: sticky Abschluss -----------------------------
+
+// Karte als Flex-Spalte, damit die Perk-Liste scrollt und die Aktion unten klebt
+.overlay__card {
+  display: flex;
+  flex-direction: column;
+}
+
+.overlay__scroll {
+  overflow-y: auto;
+  flex: 1 1 auto;
+  min-height: 0;
+  margin: 0 -0.25rem;
+  padding: 0 0.25rem;
+}
+
+// Aktionsleiste bleibt immer sichtbar — der Screen ist so immer abschließbar
+.overlay__actions--sticky {
+  flex-shrink: 0;
+  align-items: center;
+  border-top: 1px solid $panel-border;
+  padding-top: 1rem;
+  margin-top: 0.5rem;
+}
+
+.overlay__hint {
+  color: $text-dim;
+  font-size: 0.78rem;
+  margin-right: auto;
 }

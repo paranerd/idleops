@@ -38,7 +38,11 @@ UPGRADES = [
 
 COST_GROWTH = 1.15        # Preisfaktor pro Kauf innerhalb einer Stufe
 REP_BASE_PER_MIN = 0.5    # Reputationsaufbau pro Minute (Basis)
-REP_PER_EMPLOYEE = 0.05   # + pro Angestelltem und Minute (Rate wächst mit der Firma)
+# Reputationsaufbau ist pro RANG gestaffelt (spiegelt config.ts rank.repGain) und
+# logistisch zäh (× (1 − Rep/105)); der Angestellten-Beitrag ist gedeckelt.
+REP_GAIN = {"Intern": 0.04, "Junior": 0.08, "Senior": 0.16}
+REP_EMP_CAP = 2.5
+REP_SOFTCAP = 105
 SIM_MINUTES = 75
 
 # ---------------------------- Modell ----------------------------
@@ -161,7 +165,8 @@ def run():
         minutes = t / 60
         clicking = minutes < ACTIVE_CLICK_MINUTES
         s.money += s.income() + (CLICK_VALUE * CLICK_RATE if clicking else 0)
-        s.rep += (REP_BASE_PER_MIN + REP_PER_EMPLOYEE * sum(s.emp.values())) / 60
+        emp_rep = min(REP_EMP_CAP, sum(REP_GAIN[k] * n for k, n in s.emp.items()))
+        s.rep += (REP_BASE_PER_MIN + emp_rep) * max(0.0, 1 - s.rep / REP_SOFTCAP) / 60
 
         # Freischaltungen + Käufe (mehrere pro Sekunde möglich)
         for _ in range(5):

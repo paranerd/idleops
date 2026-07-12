@@ -25,7 +25,6 @@ import {
   REP_EXPECTATION,
   REP_MAX,
   REP_MULTIPLE_MAX_BONUS,
-  REP_PER_EMPLOYEE_PER_MIN,
   REP_SOFTCAP,
   REPORTING_INCIDENT_MULT,
   ROUNDS,
@@ -127,14 +126,15 @@ export function riskPoints(s: GameState): number {
 }
 
 /**
- * Reputationsaufbau pro Minute (incident-frei). Logistisch: je höher die
- * Reputation, desto zäher der weitere Aufbau — früh (Rep 8/25) kaum spürbar,
- * spät echte Arbeit. Der Angestellten-Beitrag ist gedeckelt, damit große
- * Teams die Kurve nicht trivialisieren.
+ * Reputationsaufbau pro Minute (incident-frei). Der Angestellten-Beitrag ist
+ * jetzt PRO RANG gestaffelt (rank.repGain): ein Senior/Principal hebt die Marke
+ * stärker als ein Intern. Die Summe ist gedeckelt (große Teams sollen die Kurve
+ * nicht trivialisieren) und der Aufbau ist logistisch zäh — früh (Rating C/CC)
+ * kaum spürbar, spät (Richtung AAA) echte Arbeit.
  */
 export function repPerMinute(s: GameState): number {
-  const rate =
-    REP_BASE_PER_MIN + Math.min(REP_EMP_RATE_CAP, REP_PER_EMPLOYEE_PER_MIN * employeeCount(s));
+  const empContribution = RANKS.reduce((sum, r) => sum + r.repGain * (s.emp[r.id] ?? 0), 0);
+  const rate = REP_BASE_PER_MIN + Math.min(REP_EMP_RATE_CAP, empContribution);
   return rate * Math.max(0, 1 - s.rep / REP_SOFTCAP);
 }
 

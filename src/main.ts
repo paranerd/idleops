@@ -1,6 +1,6 @@
 import '../styles/main.scss';
 import { CLICK_VALUE, PERKS, ROUNDS } from './config';
-import { buyPerk, dealClick, exitProceeds, valuation } from './engine';
+import { buyPerk, buyerFor, dealClick, exitProceeds, valuation } from './engine';
 import { load, loadMeta, resetSave, save, saveMeta, setupAutosave } from './save';
 import { startLoop } from './tick';
 import { buildUI, render, renderExitOverlay, toast } from './ui/render';
@@ -65,38 +65,54 @@ resetBtn.addEventListener('click', () => {
 });
 
 // ----------------------------- Der Exit -----------------------------
-// Zwei-Phasen-Overlay: Term Sheet ansehen → verkaufen → Perks kaufen → neu gründen.
+// Verkaufen passiert im Bewertungs-Popover (Term Sheet), mit Zwei-Klick-
+// Bestätigung (der Verkauf ist endgültig). Danach öffnet das Overlay den
+// Perk-Shop → "Neu gründen".
 
 const overlay = document.getElementById('exit-overlay') as HTMLElement;
-const phaseSheet = document.getElementById('exit-phase-sheet') as HTMLElement;
-const phasePerks = document.getElementById('exit-phase-perks') as HTMLElement;
+const sellBtn = document.getElementById('sell-btn') as HTMLButtonElement;
 
-function openExitSheet(): void {
-  phaseSheet.hidden = false;
-  phasePerks.hidden = true;
-  overlay.hidden = false;
-  renderExitOverlay(state, meta);
+// Zwei-Klick-Bestätigung wie beim Reset (kein confirm() — blockiert den Browser)
+let sellArmed = false;
+let sellResetTimer = 0;
+function disarmSell(): void {
+  sellArmed = false;
+  sellBtn.classList.remove('btn--armed');
+  sellBtn.textContent = 'Verkaufen (Exit) 💸';
 }
-
-document.getElementById('exit-btn')!.addEventListener('click', openExitSheet);
-document.getElementById('exit-cancel')!.addEventListener('click', () => {
-  overlay.hidden = true;
+sellBtn.addEventListener('click', (e) => {
+  e.stopPropagation();
+  if (!sellArmed) {
+    sellArmed = true;
+    sellBtn.classList.add('btn--armed');
+    sellBtn.textContent = 'Wirklich verkaufen? (endgültig)';
+    window.clearTimeout(sellResetTimer);
+    sellResetTimer = window.setTimeout(disarmSell, 3000);
+    return;
+  }
+  window.clearTimeout(sellResetTimer);
+  disarmSell();
+  doSell();
 });
 
-document.getElementById('exit-confirm')!.addEventListener('click', () => {
-  // Verkauf abwickeln: Erlös in die Bank, Statistik fortschreiben
+function doSell(): void {
   const proceeds = exitProceeds(state);
+  const soldValuation = valuation(state);
+  const buyer = buyerFor(soldValuation);
   meta.bank += proceeds;
   meta.exits += 1;
-  meta.bestValuation = Math.max(meta.bestValuation, valuation(state));
-  if (valuation(state) >= 1e9) meta.unicornReached = true;
+  meta.bestValuation = Math.max(meta.bestValuation, soldValuation);
+  if (soldValuation >= 1e9) meta.unicornReached = true;
   saveMeta(meta);
-  // In die Perk-Phase wechseln
-  phaseSheet.hidden = true;
-  phasePerks.hidden = false;
+  // Popover schließen, Perk-Overlay öffnen
+  document.getElementById('valuation-popover')!.hidden = true;
+  document.getElementById('valuation-info-btn')!.setAttribute('aria-expanded', 'false');
   buildPerkShop();
-  renderExitOverlay(state, meta);
-});
+  const sold = document.getElementById('sold-info')!;
+  sold.innerHTML = withCoinSvg(`Verkauft an ${buyer} für <strong>+${fmtMoney(proceeds)}</strong>.`);
+  overlay.hidden = false;
+  renderExitOverlay(meta);
+}
 
 // Perk-Shop einmal aufbauen (Buttons pro Perk, in zwei Klassen-Spalten).
 // Buttons bekommen stabile IDs, damit renderExitOverlay sie ohne Import findet.
@@ -120,7 +136,7 @@ function buildPerkShop(): void {
       btn.addEventListener('click', () => {
         if (buyPerk(meta, p.id)) {
           saveMeta(meta);
-          renderExitOverlay(state, meta);
+          renderExitOverlay(meta);
         }
       });
       row.appendChild(btn);
@@ -147,7 +163,7 @@ function handleEvent(e: GameEvent | ProgressEvent): void {
       break;
     case 'roundOffer': {
       const def = ROUNDS.find((r) => r.id === e.roundId);
-      if (def) toast(`${def.icon} Ein Term Sheet liegt auf dem Tisch: ${def.name}! Schau unter „Finanzierung“.`, 'gold');
+      if (def) toast(`${def.icon} Ein Term Sheet liegt auf dem Tisch: ${def.name}! Öffne das (i) neben deiner Bewertung.`, 'gold');
       break;
     }
     case 'unicorn':

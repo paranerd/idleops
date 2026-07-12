@@ -56,3 +56,13 @@ export function fmtRate(n: number): string {
 export function fmtInt(n: number): string {
   return Math.floor(n).toLocaleString('de-DE', { maximumFractionDigits: 0 });
 }
+
+// Reputation wird als Kredit-Rating angezeigt (C…AAA). Die internen 0–100-Werte
+// bleiben; nur die Darstellung im Header ändert sich (die genaue Zahl steht im
+// Popover). REP_RATINGS ist absteigend nach Schwelle sortiert.
+import { REP_RATINGS } from '../config';
+
+export function ratingLabel(rep: number): string {
+  for (const r of REP_RATINGS) if (rep >= r.min) return r.label;
+  return REP_RATINGS[REP_RATINGS.length - 1].label;
+}
