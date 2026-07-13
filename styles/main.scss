@@ -517,6 +517,19 @@ body.shake {
   letter-spacing: 0.05em;
   color: $text-dim;
   position: relative; // Anker fürs Abschnitts-Popover (z. B. Weiterbildung)
+
+  // Erklärender Zusatz (z. B. "— heben, was ein Run erreichen kann") in
+  // eigener Zeile statt im Fließtext der Überschrift — sonst bricht der lange
+  // Satz auf schmalen Screens mitten im Wort um. Bewusst normal statt
+  // GROSS/fett, damit klar Titel vs. Beschreibung unterscheidbar bleibt.
+  small {
+    display: block;
+    margin-top: 2px;
+    font-size: 0.72rem;
+    font-weight: 400;
+    text-transform: none;
+    letter-spacing: normal;
+  }
 }
 
 // ----------------------------- Items -----------------------------
@@ -1047,8 +1060,16 @@ body.shake {
   margin-top: 0.5rem;
 }
 
+// Steht jetzt oben bei "Erlös in der Bank" (nicht mehr in der Aktionsleiste
+// unten) — die bleibt dadurch immer nur mit den zwei Buttons.
 .overlay__hint {
+  display: block;
   color: $text-dim;
   font-size: 0.78rem;
-  margin-right: auto;
+  margin: -0.4rem 0 1rem;
+
+  // Leer (alles leistbar) → keine Lücke im Layout
+  &:empty {
+    display: none;
+  }
 }

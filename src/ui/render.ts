@@ -840,19 +840,17 @@ function renderFundingRows(s: GameState): void {
  * Rendert den Perk-Shop im Overlay. Live aktualisiert bei jedem Kauf/Abwählen.
  *
  * @param baseline Perk-Stufen VOR diesem Verkauf (meta.perks-Snapshot aus
- *   main.ts' metaBeforeSell). Steuert, ob ein Perk in dieser Session
- *   "ausgewählt" wurde (Level über Baseline) — das entscheidet die
- *   Button-Beschriftung und ob die Abwählen-Buttons sichtbar sind.
+ *   main.ts' metaBeforeSell). Steuert, ob ein Perk in dieser Session bereits
+ *   gekauft wurde (Level über Baseline) — das entscheidet, ob der
+ *   Abwählen-Button einer Zeile sichtbar ist.
  */
 export function renderExitOverlay(meta: MetaState, baseline: Record<string, number> = {}): void {
   $('perk-bank').innerHTML = withCoinSvg(fmtMoney(meta.bank));
 
-  // Kann sich der Spieler überhaupt einen Perk leisten? Steuert den Hinweis
-  // am immer sichtbaren "Neu gründen"-Button (Punkt: Screen muss abschließbar sein).
+  // Kann sich der Spieler überhaupt einen Perk leisten? Steuert NUR noch den
+  // Hinweistext bei "Erlös in der Bank" — der "Neu gründen"-Button selbst ist
+  // immer gleich beschriftet (Screen muss immer abschließbar sein).
   let cheapestAffordable = false;
-  // Wurde in DIESER Session mindestens ein Perk-Level gekauft? Steuert die
-  // Button-Beschriftung ("Ohne Kauf..." nur solange nichts ausgewählt ist).
-  let hasSelected = false;
   for (const p of PERKS) {
     const btn = document.getElementById(`perk-btn-${p.id}`) as HTMLButtonElement | null;
     const lvlEl = document.getElementById(`perk-lvl-${p.id}`);
@@ -860,7 +858,6 @@ export function renderExitOverlay(meta: MetaState, baseline: Record<string, numb
     if (!btn || !lvlEl) continue; // Shop noch nicht gebaut
     const level = meta.perks[p.id] ?? 0;
     const boughtThisSession = level - (baseline[p.id] ?? level);
-    if (boughtThisSession > 0) hasSelected = true;
     lvlEl.textContent = level ? `Stufe ${level}/${p.maxLevel}` : '';
     if (minusBtn) {
       const canDeselect = boughtThisSession > 0;
@@ -881,12 +878,8 @@ export function renderExitOverlay(meta: MetaState, baseline: Record<string, numb
     }
   }
 
-  // Hinweis + Button-Beschriftung: Screen ist IMMER abschließbar.
-  // Beschriftung hängt NUR davon ab, ob ausgewählt wurde — nicht davon, ob
-  // noch Geld für WEITERE Perks übrig ist (das steuert nur den Hinweistext).
+  // Hinweis bei "Erlös in der Bank": nur wenn nichts mehr leistbar ist.
   const hint = $('perk-hint');
-  const newRunBtn = $<HTMLButtonElement>('new-run-btn');
-  newRunBtn.textContent = hasSelected ? 'Neu gründen 🚀' : 'Ohne Kauf neu gründen 🚀';
   hint.textContent = cheapestAffordable ? '' : 'Der Erlös bleibt in der Bank — spare über mehrere Exits.';
 }
 

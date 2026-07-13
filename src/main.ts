@@ -67,8 +67,9 @@ resetBtn.addEventListener('click', () => {
 // ----------------------------- Der Exit -----------------------------
 // Verkaufen passiert im Bewertungs-Popover (Term Sheet) mit EINEM Klick. Der
 // Verkauf ist erst mit "Neu gründen" endgültig — bis dahin ist er über
-// "Doch nicht verkaufen" im Perk-Overlay vollständig zurücknehmbar (der Run
-// läuft unberührt weiter, Meta wird auf den Stand vor dem Verkauf zurückgesetzt).
+// "Abbrechen" (Button oder Klick auf den Overlay-Hintergrund) vollständig
+// zurücknehmbar (der Run läuft unberührt weiter, Meta wird auf den Stand vor
+// dem Verkauf zurückgesetzt).
 
 const overlay = document.getElementById('exit-overlay') as HTMLElement;
 const sellBtn = document.getElementById('sell-btn') as HTMLButtonElement;
@@ -108,9 +109,12 @@ function doSell(): void {
   renderExitOverlay(meta, perkBaseline());
 }
 
-// "Doch nicht verkaufen": Verkauf (inkl. etwaiger Perk-Käufe) rückgängig,
-// zurück in den laufenden Run.
-document.getElementById('exit-cancel-btn')!.addEventListener('click', () => {
+// "Abbrechen": Verkauf (inkl. etwaiger Perk-Käufe) rückgängig, zurück in den
+// laufenden Run. Sowohl vom Button als auch vom Klick auf den Hintergrund
+// aufgerufen — MUSS den Verkauf zurücknehmen, nicht nur das Overlay
+// verstecken, sonst bliebe der vorläufige Verkauf (Bank/Exit-Zähler) stehen,
+// obwohl der Run unverändert weiterläuft (mehrfach "verkaufen" ohne Fortschritt).
+function cancelSell(): void {
   if (metaBeforeSell) {
     // Meta-Objekt in place zurücksetzen (bleibt dieselbe Referenz für buildPerkShop)
     Object.assign(meta, metaBeforeSell);
@@ -120,6 +124,16 @@ document.getElementById('exit-cancel-btn')!.addEventListener('click', () => {
   }
   overlay.hidden = true;
   render(state);
+}
+
+document.getElementById('exit-cancel-btn')!.addEventListener('click', cancelSell);
+
+// Klick auf den abgedunkelten Hintergrund (außerhalb der Karte) schließt das
+// Overlay genauso wie "Abbrechen". e.target === overlay grenzt das zuverlässig
+// auf den Hintergrund ein — Klicks innerhalb der Karte haben ein anderes
+// target und bubbeln zwar hierher, lösen aber nichts aus.
+overlay.addEventListener('click', (e) => {
+  if (e.target === overlay) cancelSell();
 });
 
 // Perk-Shop einmal aufbauen (Buttons pro Perk, in zwei Klassen-Spalten).
@@ -241,6 +255,22 @@ if (offline) {
       ? `👋 Willkommen zurück! Dein Team hat in ${fmt(mins)} min ${fmtMoney(offline.earned)} verdient.`
       : '👋 Willkommen zurück!',
   );
+}
+
+// Dev-Cheat: nur im Dev-Server verfügbar (`npm run dev`), NICHT im Production-
+// Build. import.meta.env.DEV wird von Vite zur Build-Zeit statisch durch
+// `false` ersetzt, der Block hier wird von Rollup/esbuild als toter Code
+// komplett aus dem Bundle entfernt — es gibt also kein Leck-Risiko.
+// Nutzung in der Browser-Konsole: cheat(10000000)
+if (import.meta.env.DEV) {
+  (window as unknown as { cheat: (amount: number) => void }).cheat = (amount: number) => {
+    state.money += amount;
+    state.stats.totalEarned += amount;
+    save(state);
+    render(state);
+    console.log(`[cheat] +${amount} → Kontostand jetzt ${state.money}`);
+  };
+  console.log('[dev] Cheat verfügbar: cheat(10000000)');
 }
 
 setupAutosave(state);
