@@ -1,5 +1,5 @@
 import '../styles/main.scss';
-import { CLICK_VALUE, PERKS, ROUNDS } from './config';
+import { CLICK_VALUE, PERKS, REP_MAX, ROUNDS } from './config';
 import { buyPerk, buyerFor, dealClick, exitProceeds, refundPerk, valuation } from './engine';
 import { load, loadMeta, resetSave, save, saveMeta, setupAutosave } from './save';
 import { startLoop } from './tick';
@@ -261,20 +261,36 @@ if (offline) {
   );
 }
 
-// Dev-Cheat: nur im Dev-Server verfügbar (`npm run dev`), NICHT im Production-
-// Build. import.meta.env.DEV wird von Vite zur Build-Zeit statisch durch
-// `false` ersetzt, der Block hier wird von Rollup/esbuild als toter Code
-// komplett aus dem Bundle entfernt — es gibt also kein Leck-Risiko.
-// Nutzung in der Browser-Konsole: cheat(10000000)
+// Dev-Cheats: nur im Dev-Server verfügbar (`npm run dev`), NICHT im
+// Production-Build. import.meta.env.DEV wird von Vite zur Build-Zeit
+// statisch durch `false` ersetzt, der Block hier wird von Rollup/esbuild als
+// toter Code komplett aus dem Bundle entfernt — es gibt also kein Leck-Risiko.
+// Ein NAMESPACE-Objekt (window.cheat = { money, rep }) statt einzelner
+// globaler Funktionen: "cheat" bleibt der eine erkennbare Name im globalen
+// window-Namespace, per Autocomplete in der Konsole entdeckbar
+// (cheat.<Tab>), und lässt sich um weitere Cheats erweitern, ohne window mit
+// generisch benannten Einzelfunktionen zuzumüllen.
+// Nutzung in der Browser-Konsole: cheat.money(10000000) / cheat.rep(20)
 if (import.meta.env.DEV) {
-  (window as unknown as { cheat: (amount: number) => void }).cheat = (amount: number) => {
-    state.money += amount;
-    state.stats.totalEarned += amount;
-    save(state);
-    render(state);
-    console.log(`[cheat] +${amount} → Kontostand jetzt ${state.money}`);
+  (window as unknown as { cheat: { money: (amount: number) => void; rep: (amount: number) => void } }).cheat = {
+    money: (amount: number) => {
+      state.money += amount;
+      state.stats.totalEarned += amount;
+      save(state);
+      render(state);
+      console.log(`[cheat] Geld +${amount} → Kontostand jetzt ${state.money}`);
+    },
+    rep: (amount: number) => {
+      // Gleiche Klammerung wie die echte Spiellogik (tick.ts/engine.ts):
+      // 0..REP_MAX, damit ein Cheat keine Werte erzeugt, die im normalen
+      // Spiel nie vorkommen könnten (z. B. Rating-Berechnung > 100).
+      state.rep = Math.min(REP_MAX, Math.max(0, state.rep + amount));
+      save(state);
+      render(state);
+      console.log(`[cheat] Reputation ${amount >= 0 ? '+' : ''}${amount} → jetzt ${state.rep.toFixed(1)}/${REP_MAX}`);
+    },
   };
-  console.log('[dev] Cheat verfügbar: cheat(10000000)');
+  console.log('[dev] Cheats verfügbar: cheat.money(10000000) · cheat.rep(20)');
 }
 
 setupAutosave(state);
