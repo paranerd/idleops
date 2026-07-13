@@ -18,7 +18,7 @@
             <span id="income"></span>
             <button id="income-info-btn" class="info-btn" aria-label="Wie setzt sich der Gewinn zusammen?" aria-expanded="false">i</button>
           </span>
-          <div class="popover popover--left" id="income-popover" hidden>
+          <div class="popover" id="income-popover" hidden>
             <h3>Gewinn pro Sekunde</h3>
             <div class="breakdown">
               <div class="breakdown__row"><span>👤 Du (Gründer)</span><strong id="bd-founder"></strong></div>
@@ -107,7 +107,14 @@
           <span class="btn--click__sub" id="click-value"></span>
         </button>
         <div id="training-section" hidden>
-          <h3 class="subheading">🎓 Weiterbildung</h3>
+          <h3 class="subheading">
+            🎓 Weiterbildung
+            <button id="training-info-btn" class="info-btn" aria-label="Wie wirken Weiterbildungen?" aria-expanded="false">i</button>
+            <div class="popover popover--item" id="training-popover" hidden>
+              <h3>🎓 Weiterbildung</h3>
+              <p class="popover__tip">Schulungen verbessern nur deinen eigenen Klick — „Auftrag gewinnen" und die Incident-Behebung.</p>
+            </div>
+          </h3>
           <div id="training-list" class="list"></div>
         </div>
       </section>
@@ -120,6 +127,11 @@
       <section class="panel">
         <h2>
           🖥️ Hardware
+          <button id="hw-info-btn" class="info-btn" aria-label="Wie wirkt Hardware-Kapazität?" aria-expanded="false">i</button>
+          <div class="popover popover--item" id="hw-popover" hidden>
+            <h3>🖥️ Hardware</h3>
+            <p class="popover__tip">Kapazität verdient nur, wenn dein Team sie füllt. Reserve über dem Output schützt beim viralen Spike.</p>
+          </div>
           <span class="util" title="Auslastung deiner Kapazität. Gold: kaum Spike-Reserve (unter 1,2× Output). Rot: Engpass — Team-Output verpufft, aufrüsten!">
             <span class="util__bar"><span class="util__fill" id="util-hw-fill"></span></span>
             <span class="util__pct" id="util-hw-pct"></span>

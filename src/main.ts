@@ -1,6 +1,6 @@
 import '../styles/main.scss';
 import { CLICK_VALUE, PERKS, ROUNDS } from './config';
-import { buyPerk, buyerFor, dealClick, exitProceeds, valuation } from './engine';
+import { buyPerk, buyerFor, dealClick, exitProceeds, refundPerk, valuation } from './engine';
 import { load, loadMeta, resetSave, save, saveMeta, setupAutosave } from './save';
 import { startLoop } from './tick';
 import { buildUI, render, renderExitOverlay, toast } from './ui/render';
@@ -73,8 +73,15 @@ resetBtn.addEventListener('click', () => {
 const overlay = document.getElementById('exit-overlay') as HTMLElement;
 const sellBtn = document.getElementById('sell-btn') as HTMLButtonElement;
 
-// Snapshot des Meta-Stands vor dem (vorläufigen) Verkauf — für "Doch nicht".
+// Snapshot des Meta-Stands vor dem (vorläufigen) Verkauf — für "Doch nicht"
+// UND als Baseline dafür, welche Perk-Level in DIESER Session gekauft wurden
+// (steuert Button-Beschriftung + Abwählen-Buttons im Perk-Shop).
 let metaBeforeSell: MetaState | null = null;
+
+/** Perk-Level-Baseline der laufenden Verkaufs-Session (leer, falls keine läuft). */
+function perkBaseline(): Record<string, number> {
+  return metaBeforeSell?.perks ?? {};
+}
 
 sellBtn.addEventListener('click', (e) => {
   e.stopPropagation();
@@ -98,7 +105,7 @@ function doSell(): void {
   const sold = document.getElementById('sold-info')!;
   sold.innerHTML = withCoinSvg(`Verkauft an ${buyer} für <strong>+${fmtMoney(proceeds)}</strong>.`);
   overlay.hidden = false;
-  renderExitOverlay(meta);
+  renderExitOverlay(meta, perkBaseline());
 }
 
 // "Doch nicht verkaufen": Verkauf (inkl. etwaiger Perk-Käufe) rückgängig,
@@ -117,6 +124,10 @@ document.getElementById('exit-cancel-btn')!.addEventListener('click', () => {
 
 // Perk-Shop einmal aufbauen (Buttons pro Perk, in zwei Klassen-Spalten).
 // Buttons bekommen stabile IDs, damit renderExitOverlay sie ohne Import findet.
+// Jede Zeile hat zusätzlich einen Abwählen-Button ("−"): der Kauf passiert
+// zwar sofort (Bank -> Perk-Level), ist aber bis "Neu gründen" rücknehmbar —
+// renderExitOverlay blendet ihn nur ein, solange das Level über der Baseline
+// dieser Session liegt (man kann keine Perks aus früheren Exits abwählen).
 let perkShopBuilt = false;
 function buildPerkShop(): void {
   if (perkShopBuilt) return;
@@ -131,16 +142,34 @@ function buildPerkShop(): void {
           <div class="item__title"><span class="item__icon">${p.icon}</span> ${p.name} <span class="item__count" id="perk-lvl-${p.id}"></span></div>
           <div class="item__meta">${p.desc}</div>
         </div>`;
+      const actions = document.createElement('div');
+      actions.className = 'item__actions';
+      const minusBtn = document.createElement('button');
+      minusBtn.className = 'btn btn--ghost btn--minus';
+      minusBtn.id = `perk-minus-${p.id}`;
+      minusBtn.textContent = '−';
+      minusBtn.hidden = true;
+      minusBtn.setAttribute('aria-label', `${p.name}: eine Stufe abwählen`);
+      minusBtn.addEventListener('click', () => {
+        // Sicherheitsnetz: nie unter die Baseline dieser Session refunden.
+        const base = perkBaseline()[p.id] ?? meta.perks[p.id] ?? 0;
+        if ((meta.perks[p.id] ?? 0) <= base) return;
+        if (refundPerk(meta, p.id)) {
+          saveMeta(meta);
+          renderExitOverlay(meta, perkBaseline());
+        }
+      });
       const btn = document.createElement('button');
       btn.className = 'btn btn--buy';
       btn.id = `perk-btn-${p.id}`;
       btn.addEventListener('click', () => {
         if (buyPerk(meta, p.id)) {
           saveMeta(meta);
-          renderExitOverlay(meta);
+          renderExitOverlay(meta, perkBaseline());
         }
       });
-      row.appendChild(btn);
+      actions.append(minusBtn, btn);
+      row.appendChild(actions);
       list.appendChild(row);
     }
   }

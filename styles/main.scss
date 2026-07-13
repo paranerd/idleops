@@ -46,7 +46,12 @@ h2 {
   top: 0;
   z-index: 30;
   display: flex;
-  flex-wrap: wrap;
+  // Kein content-abhängiges Wrapping mehr (früher: flex-wrap: wrap) — ob
+  // Marke und Stats in einer oder zwei Zeilen stehen, entscheidet ab jetzt
+  // ausschließlich die Viewport-Breite (Media Query unten), nicht die
+  // Ziffernzahl von Cash/Bewertung. Sonst „springt" das Layout mitten im
+  // Spiel, sobald ein Wert eine Stelle länger wird.
+  flex-wrap: nowrap;
   gap: 1rem;
   align-items: center;
   justify-content: space-between;
@@ -88,6 +93,10 @@ h2 {
   }
 }
 
+// Anker fürs Popover der Zeile — auf Desktop hängt das Popover an SEINEM
+// eigenen Stat (obere rechte Ecke am (i)), nicht zentriert an der Topbar.
+// Ab dem Mobile-Breakpoint unten wird das wieder aufgehoben (Popover hängt
+// dort stattdessen zentriert an der Topbar, siehe Media Query).
 .stat--rep,
 .stat--money,
 .stat--valuation {
@@ -128,7 +137,7 @@ h2 {
   top: calc(100% + 8px);
   right: 0;
   z-index: 20;
-  width: 320px;
+  width: min(320px, calc(100vw - 2rem));
   padding: 0.9rem 1rem;
   background: $panel;
   border: 1px solid $panel-border;
@@ -137,6 +146,14 @@ h2 {
   font-size: 0.83rem;
   line-height: 1.45;
   color: $text;
+  // Popover hängt teils an Überschriften (h2/.subheading), die selbst
+  // GROSS + fett gesetzt sind (text-transform/font-weight sind vererbte
+  // Eigenschaften) — hier zurücksetzen, damit der Inhalt IMMER normal
+  // gesetzt ist, unabhängig vom Anker. Die eigene <h3> bleibt davon
+  // unberührt (Browser-Default für h3 ist fett, keine geerbte Eigenschaft).
+  text-transform: none;
+  font-weight: 400;
+  letter-spacing: normal;
 
   h3 {
     margin: 0 0 0.4rem;
@@ -161,12 +178,6 @@ h2 {
     color: $text-dim;
     font-size: 0.78rem;
     margin-bottom: 0 !important;
-  }
-
-  // Variante: hängt an einem Stat am linken Rand der Stats-Leiste
-  &--left {
-    right: auto;
-    left: 0;
   }
 
   // Variante: hängt an einer Item-Zeile (Team, Hardware, Upgrades, Schulungen)
@@ -241,6 +252,55 @@ h2 {
   }
 }
 
+// Unterhalb dieser Breite passen Marke + alle drei Stats nicht mehr
+// verlässlich in eine Zeile — deshalb ab hier FEST zweizeilig (Marke oben,
+// Stats-Leiste darunter). Das ist eine reine Breakpoint-Entscheidung, die
+// sich nie durch wachsende Zahlen im Spiel selbst ändert — Cash/Income,
+// Rating und Bewertung springen dadurch nicht mehr zwischen "neben IdleOps"
+// und "darunter", und der Rest der Seite verschiebt sich nicht mehr mit.
+@media (max-width: 700px) {
+  .topbar {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 0.6rem;
+  }
+
+  .stats {
+    width: 100%;
+    justify-content: space-between;
+    gap: 0.75rem;
+  }
+
+  .stat__value {
+    font-size: 1.3rem;
+  }
+
+  // Höhere Selektor-Spezifität als die späteren, unbedingten Regeln
+  // (.stat--rep .stat__value / .stat--valuation .stat__value weiter unten),
+  // damit die mobile Verkleinerung dort nicht überschrieben wird.
+  .topbar .stat--rep .stat__value,
+  .topbar .stat--valuation .stat__value {
+    font-size: 1.1rem;
+  }
+
+  // Auf schmalen Screens verschieben sich die einzelnen Stats unterschiedlich
+  // stark (je nach Ziffernzahl, je nachdem ob die Bewertung schon sichtbar
+  // ist) — eine Verankerung am einzelnen Stat schiebt das Popover dadurch
+  // öfter über den Bildschirmrand hinaus. Deshalb hier: Anker ist die ganze
+  // Topbar (stabil, unabhängig vom einzelnen Stat), Popover zentriert.
+  .stat--rep,
+  .stat--money,
+  .stat--valuation {
+    position: static;
+  }
+
+  .stats .popover {
+    left: 50%;
+    right: auto;
+    transform: translateX(-50%);
+  }
+}
+
 // ----------------------------- Banner -----------------------------
 
 .banner {
@@ -301,6 +361,7 @@ h2 {
     letter-spacing: 0.05em;
     color: $text-dim;
     margin-bottom: 0.75rem;
+    position: relative; // Anker fürs Abschnitts-Popover (z. B. Hardware)
   }
 }
 
@@ -455,6 +516,7 @@ body.shake {
   text-transform: uppercase;
   letter-spacing: 0.05em;
   color: $text-dim;
+  position: relative; // Anker fürs Abschnitts-Popover (z. B. Weiterbildung)
 }
 
 // ----------------------------- Items -----------------------------
@@ -476,8 +538,15 @@ body.shake {
   background: rgba(255, 255, 255, 0.02);
   position: relative; // Anker für das (i)-Popover der Zeile
 
+  // Nur die kompakte Zeile abdunkeln ("erledigt") — NICHT das Popover.
+  // opacity auf .item selbst würde auch das absolut positionierte Popover
+  // mitdimmen (opacity gilt für den ganzen Teilbaum als eine Ebene), wodurch
+  // dessen Hintergrund kaum noch zu erkennen wäre, sobald es geöffnet ist.
   &--owned {
-    opacity: 0.6;
+    > .item__info,
+    > .btn {
+      opacity: 0.6;
+    }
   }
 
   &__title {
@@ -498,6 +567,15 @@ body.shake {
     color: $rep;
     font-size: 0.78rem;
     margin-top: 2px;
+  }
+
+  // Hält Kauf- + Abwählen-Button zusammen, damit .item weiterhin genau zwei
+  // Flex-Kinder hat (space-between zwischen Info und Aktionen).
+  &__actions {
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+    flex-shrink: 0;
   }
 }
 
@@ -635,6 +713,15 @@ body.shake {
     width: 100%;
     min-width: 0;
     font-size: 0.8rem;
+  }
+
+  // Perk abwählen im Exit-Overlay — klein, nur sichtbar, solange in dieser
+  // Session tatsächlich ein Level dieses Perks gekauft wurde.
+  &--minus {
+    min-width: 0;
+    padding: 0.5rem 0.7rem;
+    font-weight: 700;
+    line-height: 1;
   }
 }
 

@@ -227,8 +227,7 @@ export function buildUI(s: GameState, onAction: () => void): void {
       `<div class="breakdown">
         ${popRow('Kapazität', `+${fmtRate(h.capacity)}`)}
         ${popRow('Betriebskosten', `−${fmtRate(h.upkeep)}`)}
-      </div>
-      <p class="popover__tip">Kapazität verdient nur, wenn dein Team sie füllt. Reserve über dem Output schützt beim viralen Spike.</p>`,
+      </div>`,
     );
     row.button.addEventListener('click', () => {
       buyHardware(s, h.id);
@@ -266,8 +265,7 @@ export function buildUI(s: GameState, onAction: () => void): void {
       <div class="breakdown">
         ${popRow('Effekt', '', 'effect')}
         ${popRow('Bei aktivem Spielen', '', 'active')}
-      </div>
-      <p class="popover__tip">Schulungen verbessern nur deinen eigenen Klick — „Auftrag gewinnen" und die Incident-Behebung.</p>`,
+      </div>`,
     );
     row.button.addEventListener('click', () => {
       buyTraining(s, t.id);
@@ -326,6 +324,22 @@ export function buildUI(s: GameState, onAction: () => void): void {
   wirePopover('rep-info-btn', 'rep-popover');
   wirePopover('income-info-btn', 'income-popover', onAction);
   wirePopover('valuation-info-btn', 'valuation-popover', onAction);
+  // Sammel-Hinweise, die vorher redundant in jedem Item-Popover standen —
+  // jetzt je einmal am Abschnitts-Titel (Hardware / Weiterbildung).
+  wirePopover('hw-info-btn', 'hw-popover');
+  wirePopover('training-info-btn', 'training-popover');
+}
+
+// Kopfzeilen-Popover (Gewinn/Bewertung/Rating) — es ist immer höchstens
+// eines gleichzeitig offen, analog zu den Item-Popovern oben.
+let openStatPopover: { popover: HTMLElement; btn: HTMLButtonElement } | null = null;
+
+function closeStatPopover(): void {
+  if (openStatPopover) {
+    openStatPopover.popover.hidden = true;
+    openStatPopover.btn.setAttribute('aria-expanded', 'false');
+    openStatPopover = null;
+  }
 }
 
 /** Info-Button + Popover verdrahten; Klick außerhalb & Escape schließen. */
@@ -333,6 +347,12 @@ function wirePopover(btnId: string, popoverId: string, onOpen?: () => void): voi
   const btn = $<HTMLButtonElement>(btnId);
   const popover = $(popoverId);
   const setOpen = (open: boolean) => {
+    if (open) {
+      closeStatPopover(); // andere Kopfzeilen-Popover schließen, bevor dieses aufgeht
+      openStatPopover = { popover, btn };
+    } else if (openStatPopover?.popover === popover) {
+      openStatPopover = null;
+    }
     popover.hidden = !open;
     btn.setAttribute('aria-expanded', String(open));
     if (open) onOpen?.();
@@ -816,19 +836,37 @@ function renderFundingRows(s: GameState): void {
 
 // ----------------------------- Exit-Overlay (nur Perk-Shop) -----------------------------
 
-/** Rendert den Perk-Shop im Overlay. Live aktualisiert bei jedem Kauf. */
-export function renderExitOverlay(meta: MetaState): void {
+/**
+ * Rendert den Perk-Shop im Overlay. Live aktualisiert bei jedem Kauf/Abwählen.
+ *
+ * @param baseline Perk-Stufen VOR diesem Verkauf (meta.perks-Snapshot aus
+ *   main.ts' metaBeforeSell). Steuert, ob ein Perk in dieser Session
+ *   "ausgewählt" wurde (Level über Baseline) — das entscheidet die
+ *   Button-Beschriftung und ob die Abwählen-Buttons sichtbar sind.
+ */
+export function renderExitOverlay(meta: MetaState, baseline: Record<string, number> = {}): void {
   $('perk-bank').innerHTML = withCoinSvg(fmtMoney(meta.bank));
 
   // Kann sich der Spieler überhaupt einen Perk leisten? Steuert den Hinweis
   // am immer sichtbaren "Neu gründen"-Button (Punkt: Screen muss abschließbar sein).
   let cheapestAffordable = false;
+  // Wurde in DIESER Session mindestens ein Perk-Level gekauft? Steuert die
+  // Button-Beschriftung ("Ohne Kauf..." nur solange nichts ausgewählt ist).
+  let hasSelected = false;
   for (const p of PERKS) {
     const btn = document.getElementById(`perk-btn-${p.id}`) as HTMLButtonElement | null;
     const lvlEl = document.getElementById(`perk-lvl-${p.id}`);
+    const minusBtn = document.getElementById(`perk-minus-${p.id}`) as HTMLButtonElement | null;
     if (!btn || !lvlEl) continue; // Shop noch nicht gebaut
     const level = meta.perks[p.id] ?? 0;
+    const boughtThisSession = level - (baseline[p.id] ?? level);
+    if (boughtThisSession > 0) hasSelected = true;
     lvlEl.textContent = level ? `Stufe ${level}/${p.maxLevel}` : '';
+    if (minusBtn) {
+      const canDeselect = boughtThisSession > 0;
+      minusBtn.hidden = !canDeselect;
+      minusBtn.disabled = !canDeselect;
+    }
     if (perkMaxed(meta, p)) {
       btn.innerHTML = `${ICON_CHECK}<span>max</span>`;
       btn.disabled = true;
@@ -843,16 +881,13 @@ export function renderExitOverlay(meta: MetaState): void {
     }
   }
 
-  // Hinweis + Button-Beschriftung: Screen ist IMMER abschließbar
+  // Hinweis + Button-Beschriftung: Screen ist IMMER abschließbar.
+  // Beschriftung hängt NUR davon ab, ob ausgewählt wurde — nicht davon, ob
+  // noch Geld für WEITERE Perks übrig ist (das steuert nur den Hinweistext).
   const hint = $('perk-hint');
   const newRunBtn = $<HTMLButtonElement>('new-run-btn');
-  if (cheapestAffordable) {
-    hint.textContent = '';
-    newRunBtn.textContent = 'Neu gründen 🚀';
-  } else {
-    hint.textContent = 'Der Erlös bleibt in der Bank — spare über mehrere Exits.';
-    newRunBtn.textContent = 'Ohne Kauf neu gründen 🚀';
-  }
+  newRunBtn.textContent = hasSelected ? 'Neu gründen 🚀' : 'Ohne Kauf neu gründen 🚀';
+  hint.textContent = cheapestAffordable ? '' : 'Der Erlös bleibt in der Bank — spare über mehrere Exits.';
 }
 
 // ----------------------------- Toasts -----------------------------

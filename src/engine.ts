@@ -475,3 +475,19 @@ export function buyPerk(meta: MetaState, perkId: string): boolean {
   meta.perks[perkId] = (meta.perks[perkId] ?? 0) + 1;
   return true;
 }
+
+/**
+ * Macht den zuletzt gekauften Level einer Perk rückgängig (volle Erstattung
+ * des dafür gezahlten Preises). Für das Abwählen im Perk-Shop VOR "Neu
+ * gründen" — der Aufrufer ist dafür verantwortlich, nicht unter die Baseline
+ * der aktuellen Session zu refunden (siehe main.ts: metaBeforeSell).
+ */
+export function refundPerk(meta: MetaState, perkId: string): boolean {
+  const def = PERKS.find((p) => p.id === perkId);
+  const level = meta.perks[perkId] ?? 0;
+  if (!def || level <= 0) return false;
+  const price = def.basePrice * Math.pow(def.priceGrowth, level - 1);
+  meta.perks[perkId] = level - 1;
+  meta.bank += price;
+  return true;
+}
