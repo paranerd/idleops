@@ -267,7 +267,12 @@ h2 {
 
   .stats {
     width: 100%;
-    justify-content: space-between;
+    // space-between klebt die Stats an die Ränder — solange die Bewertung
+    // noch versteckt ist (vor Produkt-Markt-Fit), bleiben nur Cash + Rating
+    // übrig und reißen dadurch eine große leere Lücke in der Mitte auf.
+    // space-evenly verteilt gleichmäßig, egal ob zwei oder drei Stats
+    // sichtbar sind (Rand bekommt dieselbe Lücke wie die Mitte).
+    justify-content: space-evenly;
     gap: 0.75rem;
   }
 
