@@ -695,9 +695,14 @@ function roundName(id?: string): string {
   return r ? r.name : '';
 }
 
-/** Nächste noch nicht angenommene Runde (für die Fortschritts-Zeile). */
+/**
+ * Nächste noch offene Runde (für die Fortschritts-Zeile). "Offen" heißt: weder
+ * von einem Investor angenommen (s.rounds) NOCH aus eigener Tasche freigekauft
+ * (s.selfUnlocked) — sonst bliebe z. B. nach dem Freikauf der Seed-Runde
+ * weiterhin "Seed: Angebot liegt vor" stehen, obwohl die Ära längst offen ist.
+ */
 function nextRound(s: GameState): RoundDef | null {
-  for (const r of ROUNDS) if (!s.rounds.includes(r.id)) return r;
+  for (const r of ROUNDS) if (!s.rounds.includes(r.id) && !s.selfUnlocked.includes(r.id)) return r;
   return null;
 }
 
@@ -896,4 +901,32 @@ export function toast(message: string, kind: 'info' | 'warn' | 'gold' = 'info'):
     el.classList.remove('toast--visible');
     window.setTimeout(() => el.remove(), 400);
   }, 6000);
+}
+
+// ----------------------------- Hug of Death -----------------------------
+
+let hugBannerTimer: number | undefined;
+
+/**
+ * Zeigt den Hug-of-Death-Banner oben (rote Incident-Optik), OHNE Beheben-
+ * Button/Countdown — anders als ein echter Incident ist das Ereignis beim
+ * Anzeigen schon abgeschlossen (Reputation bereits abgezogen, Chance bereits
+ * verpasst). Blendet sich nach ein paar Sekunden von selbst aus, wie ein
+ * Toast — nur oben und dadurch schwerer zu übersehen, was der Schwere des
+ * Ereignisses eher entspricht als ein Toast unten rechts in der Warteschlange.
+ */
+export function showHugOfDeathBanner(message: string): void {
+  const el = $('hug-banner');
+  window.clearTimeout(hugBannerTimer);
+  el.textContent = message;
+  el.hidden = false;
+  el.classList.remove('banner--visible');
+  void el.offsetWidth; // Reflow erzwingen, damit die Opacity-Transition sauber neu startet
+  el.classList.add('banner--visible');
+  hugBannerTimer = window.setTimeout(() => {
+    el.classList.remove('banner--visible');
+    window.setTimeout(() => {
+      el.hidden = true;
+    }, 300);
+  }, 4500);
 }

@@ -3,7 +3,7 @@ import { CLICK_VALUE, PERKS, ROUNDS } from './config';
 import { buyPerk, buyerFor, dealClick, exitProceeds, refundPerk, valuation } from './engine';
 import { load, loadMeta, resetSave, save, saveMeta, setupAutosave } from './save';
 import { startLoop } from './tick';
-import { buildUI, render, renderExitOverlay, toast } from './ui/render';
+import { buildUI, render, renderExitOverlay, showHugOfDeathBanner, toast } from './ui/render';
 import { fmt, fmtMoney, withCoinSvg } from './ui/format';
 import type { GameEvent } from './events';
 import type { ProgressEvent } from './tick';
@@ -243,7 +243,11 @@ function handleEvent(e: GameEvent | ProgressEvent): void {
       toast('Der virale Sturm ist vorbei.');
       break;
     case 'hugOfDeath':
-      toast('💀 Hug of Death: Ein viraler Post — aber deine Hardware war am Limit. Seite gecrasht, Chance verpasst, −5 Reputation. Halte Kapazitäts-Reserve vor!', 'warn');
+      // Eigenes rotes Banner oben statt Toast — der Schwere des Ereignisses
+      // (verpasster viraler Post + Reputationsverlust) angemessener als ein
+      // Toast unten rechts, der optisch gleichrangig neben "Willkommen
+      // zurück" steht. showHugOfDeathBanner() blendet sich selbst aus.
+      showHugOfDeathBanner('💀 Hug of Death: Ein viraler Post — aber deine Hardware war am Limit. Seite gecrasht, Chance verpasst, −5 Reputation. Halte Kapazitäts-Reserve vor!');
       break;
   }
 }

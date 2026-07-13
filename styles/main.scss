@@ -306,6 +306,7 @@ h2 {
 .banner {
   padding: 0.5rem 1.5rem;
   font-size: 0.9rem;
+  text-align: center;
 
   &--spike {
     color: $gold;
@@ -317,7 +318,10 @@ h2 {
   &--event {
     display: flex;
     align-items: center;
-    justify-content: space-between;
+    // zentriert als GRUPPE (Text + Beheben-Button) statt an den Rändern
+    // auseinandergezogen (vorher space-between) — macht den Zeilenumbruch bei
+    // schmalen Screens außerdem weniger anfällig für Umbruch mitten im Text.
+    justify-content: center;
     gap: 1rem;
     background: rgba($danger, 0.12);
     border-bottom: 1px solid $danger;
@@ -326,11 +330,29 @@ h2 {
     .banner__text {
       display: flex;
       flex-direction: column;
+      align-items: center;
 
       span {
         color: $text-dim;
         font-size: 0.85rem;
       }
+    }
+  }
+
+  // Hug of Death: gleiche rote Dringlichkeit wie ein Incident, aber kein
+  // Beheben-Button/Countdown (das Ereignis ist beim Anzeigen schon vorbei) —
+  // blendet sich stattdessen nach ein paar Sekunden von selbst aus, wie ein
+  // Toast, nur oben und deutlich schwerer zu übersehen.
+  &--hug {
+    font-weight: 600;
+    background: rgba($danger, 0.16);
+    border-bottom: 1px solid $danger;
+    color: $text;
+    opacity: 0;
+    transition: opacity 0.3s ease;
+
+    &.banner--visible {
+      opacity: 1;
     }
   }
 }
